@@ -1,0 +1,157 @@
+{
+ "AW": {
+  "name": "Transport for Wales",
+  "url": "https://tfw.wales",
+  "color": "E3002B"
+ },
+ "CC": {
+  "name": "c2c",
+  "url": "https://www.c2c-online.co.uk",
+  "color": "B7007C"
+ },
+ "CH": {
+  "name": "Chiltern Railways",
+  "url": "https://www.chilternrailways.co.uk",
+  "color": "00A1E0"
+ },
+ "CS": {
+  "name": "Caledonian Sleeper",
+  "url": "https://www.sleeper.scot",
+  "color": "1D2D44"
+ },
+ "EM": {
+  "name": "East Midlands Railway",
+  "url": "https://www.eastmidlandsrailway.co.uk",
+  "color": "713563"
+ },
+ "ES": {
+  "name": "Eurostar",
+  "url": "https://www.eurostar.com",
+  "color": "FFDE00"
+ },
+ "GC": {
+  "name": "Grand Central",
+  "url": "https://www.grandcentralrail.com",
+  "color": "1D1D1B"
+ },
+ "GN": {
+  "name": "Great Northern",
+  "url": "https://www.greatnorthernrail.com",
+  "color": "6B2C91"
+ },
+ "GR": {
+  "name": "LNER",
+  "url": "https://www.lner.co.uk",
+  "color": "CE0E2D"
+ },
+ "GW": {
+  "name": "Great Western Railway",
+  "url": "https://www.gwr.com",
+  "color": "0A493E"
+ },
+ "GX": {
+  "name": "Gatwick Express",
+  "url": "https://www.gatwickexpress.com",
+  "color": "D3001F"
+ },
+ "HT": {
+  "name": "Hull Trains",
+  "url": "https://www.hulltrains.co.uk",
+  "color": "2E3B8F"
+ },
+ "HX": {
+  "name": "Heathrow Express",
+  "url": "https://www.heathrowexpress.com",
+  "color": "532E63"
+ },
+ "IL": {
+  "name": "Island Line",
+  "url": "https://www.southwesternrailway.com",
+  "color": "1C4F9C"
+ },
+ "LD": {
+  "name": "Lumo",
+  "url": "https://www.lumo.co.uk",
+  "color": "1F45FC"
+ },
+ "LE": {
+  "name": "Greater Anglia",
+  "url": "https://www.greateranglia.co.uk",
+  "color": "D70428"
+ },
+ "LM": {
+  "name": "West Midlands Railway",
+  "url": "https://www.westmidlandsrailway.co.uk",
+  "color": "E87722"
+ },
+ "LO": {
+  "name": "London Overground",
+  "url": "https://tfl.gov.uk/modes/london-overground",
+  "color": "EE7C0E"
+ },
+ "LT": {
+  "name": "London Underground",
+  "url": "https://tfl.gov.uk",
+  "color": "0019A8"
+ },
+ "ME": {
+  "name": "Merseyrail",
+  "url": "https://www.merseyrail.org",
+  "color": "FFCC00"
+ },
+ "NT": {
+  "name": "Northern",
+  "url": "https://www.northernrailway.co.uk",
+  "color": "262262"
+ },
+ "SE": {
+  "name": "Southeastern",
+  "url": "https://www.southeasternrailway.co.uk",
+  "color": "00AFE8"
+ },
+ "SN": {
+  "name": "Southern",
+  "url": "https://www.southernrailway.com",
+  "color": "7DBA3C"
+ },
+ "SR": {
+  "name": "ScotRail",
+  "url": "https://www.scotrail.co.uk",
+  "color": "1E467D"
+ },
+ "SW": {
+  "name": "South Western Railway",
+  "url": "https://www.southwesternrailway.com",
+  "color": "3F5AA8"
+ },
+ "TL": {
+  "name": "Thameslink",
+  "url": "https://www.thameslinkrailway.com",
+  "color": "E9438B"
+ },
+ "TP": {
+  "name": "TransPennine Express",
+  "url": "https://www.tpexpress.co.uk",
+  "color": "0096D6"
+ },
+ "TW": {
+  "name": "Tyne and Wear Metro",
+  "url": "https://www.nexus.org.uk/metro",
+  "color": "F6A800"
+ },
+ "VT": {
+  "name": "Avanti West Coast",
+  "url": "https://www.avantiwestcoast.co.uk",
+  "color": "00687A"
+ },
+ "XC": {
+  "name": "CrossCountry",
+  "url": "https://www.crosscountrytrains.co.uk",
+  "color": "9B1B30"
+ },
+ "XR": {
+  "name": "Elizabeth line",
+  "url": "https://tfl.gov.uk/modes/elizabeth-line",
+  "color": "6950A1"
+ }
+}

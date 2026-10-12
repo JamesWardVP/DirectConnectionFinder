@@ -2,4 +2,6 @@ node_modules/
 .env
 *.log
 data/gtfs/
+dist/
+timetable/
 .DS_Store

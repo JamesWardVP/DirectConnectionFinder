@@ -134,8 +134,10 @@ export class ResultsView {
       out.push(`<li class="stop major"><span class="t">${esc(last.arrive)}</span><span class="n">${esc(last.name)}</span></li>`);
       out.push('</ol>');
       const opNames = leg.operators.map((o) => `<span class="op" style="background:${opColor(o)}">${esc(o.name)}</span>`).join(' ');
-      out.push(`<div class="leg-meta">${opNames}<span>${esc(leg.service)} · to ${esc(leg.headsign)} · ${fmtDuration(leg.minutes)}</span>`);
+      const about = [leg.headcode, leg.service, `to ${leg.headsign}`, fmtDuration(leg.minutes)].filter(Boolean).map(esc).join(' · ');
+      out.push(`<div class="leg-meta">${opNames}<span>${about}</span>`);
       if (leg.joinedTrips) out.push('<span>Runs as one train throughout, so stay on board</span>');
+      for (const n of leg.notes || []) out.push(`<span class="leg-note">${esc(n)}</span>`);
       if (inner.length) out.push(`<button type="button" class="toggle-calls" data-action="calls">${inner.length} stop${inner.length > 1 ? 's' : ''}</button>`);
       out.push('</div></div>');
     }

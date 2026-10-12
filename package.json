@@ -1,12 +1,13 @@
 {
   "name": "direct-connection-finder",
   "version": "0.1.0",
-  "description": "Find direct and indirect UK train routes between places, with radius search and a Tube-map style route map.",
+  "description": "Find direct and indirect UK train routes between places, with radius search and a Tube-map style route map. Runs as a static site on GitHub Pages.",
   "type": "module",
-  "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
+    "build": "node scripts/build-site.js",
+    "start": "node scripts/build-site.js && node scripts/serve.js",
+    "serve": "node scripts/serve.js",
+    "fetch:timetable": "bash scripts/fetch-timetable.sh",
     "build:demo": "node scripts/build-demo-gtfs.js",
     "test": "node --test test/*.test.js"
   },
@@ -16,7 +17,6 @@
   "license": "MIT",
   "dependencies": {
     "adm-zip": "^0.6.1",
-    "express": "^5.3.0",
     "leaflet": "^1.9.4"
   }
 }

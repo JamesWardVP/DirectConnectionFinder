@@ -28,7 +28,7 @@ export class RouteMap {
 
   async loadCoastline() {
     try {
-      const res = await fetch('/data/coastline.geojson');
+      const res = await fetch('data/coastline.geojson');
       const geo = await res.json();
       L.geoJSON(geo, {
         pane: 'land',

@@ -343,6 +343,8 @@ function finishJourney(feed, j) {
       headsign: lastTrip.headsign || feed.stations[lastTrip.stations[lastTrip.stations.length - 1]].name,
       tripIds: l.trips.map((t) => t.id),
       joinedTrips: l.trips.length > 1,
+      headcode: l.trips[0].shortName || '',
+      notes: [...new Set(l.trips.map((t) => t.note).filter(Boolean))],
       from: sref(l.from), to: sref(l.to),
       depart: clockRef(j.date, l.depMin), arrive: clockRef(j.date, l.arrMin),
       minutes: l.arrMin - l.depMin,

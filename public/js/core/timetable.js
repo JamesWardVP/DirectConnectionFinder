@@ -9,7 +9,7 @@
 // seat is on one physical train, so it counts as a direct journey.
 
 const DAY = 1440;
-const NEXT_DAY_HORIZON = 18 * 60; // include next-day trips departing before 18:00
+const NEXT_DAY_HORIZON = 10 * 60; // include next-day trips departing before 10:00
 const BLOCK_MAX_GAP = 60;
 
 /** 'YYYY-MM-DD' or 'YYYYMMDD' -> 'YYYYMMDD' */
@@ -59,6 +59,16 @@ export class Timetable {
     return out;
   }
 
+  /** Trains (block-merged trips) for one service day, cached briefly. */
+  trainsOn(date) {
+    this.trainCache ??= new Map();
+    if (!this.trainCache.has(date)) {
+      this.trainCache.set(date, mergeBlocks(this.tripsOn(date)));
+      if (this.trainCache.size > 4) this.trainCache.delete(this.trainCache.keys().next().value);
+    }
+    return this.trainCache.get(date);
+  }
+
   /** True if any trip runs on the date. */
   hasServiceOn(date) {
     for (const serviceId of this.tripsByService.keys()) if (this.serviceRuns(serviceId, date)) return true;
@@ -82,7 +92,7 @@ export class Timetable {
   buildDay(date) {
     const trains = [];
     const add = (serviceDate, offset, keep) => {
-      for (const train of mergeBlocks(this.tripsOn(serviceDate))) {
+      for (const train of this.trainsOn(serviceDate)) {
         const first = train.dep[0] + offset, last = train.arr[train.arr.length - 1] + offset;
         if (!keep(first, last)) continue;
         trains.push(shiftTrain(train, offset, serviceDate));
@@ -92,24 +102,42 @@ export class Timetable {
     add(date, 0, () => true);
     add(addDays(date, 1), DAY, (first) => first < DAY + NEXT_DAY_HORIZON);
 
+    // Departures per station, sorted by time, in flat typed arrays.
     const nStations = this.feed.stations.length;
-    const lists = Array.from({ length: nStations }, () => []);
+    const counts = new Int32Array(nStations + 1);
+    trains.forEach((train) => {
+      if (!train.patternKey) train.patternKey = Array.prototype.join.call(train.stations, ',');
+      if (!this.patternIds.has(train.patternKey)) this.patternIds.set(train.patternKey, this.patternIds.size);
+      train.pattern = this.patternIds.get(train.patternKey);
+      for (let p = 0; p < train.stations.length - 1; p++) if (train.pickup[p]) counts[train.stations[p] + 1]++;
+    });
+    for (let i = 0; i < nStations; i++) counts[i + 1] += counts[i];
+    const total = counts[nStations];
+    const fill = counts.slice(0, nStations);
+    const keys = new Float64Array(total), trainOf = new Int32Array(total), posOf = new Int32Array(total);
     trains.forEach((train, ti) => {
-      const key = Array.prototype.join.call(train.stations, ',');
-      if (!this.patternIds.has(key)) this.patternIds.set(key, this.patternIds.size);
-      train.pattern = this.patternIds.get(key);
       for (let p = 0; p < train.stations.length - 1; p++) {
-        if (train.pickup[p]) lists[train.stations[p]].push([train.dep[p], ti, p]);
+        if (!train.pickup[p]) continue;
+        const k = fill[train.stations[p]]++;
+        trainOf[k] = ti;
+        posOf[k] = p;
+        // Sort key: departure time, then entry number (exact in a double).
+        keys[k] = (train.dep[p] + 4096) * 8388608 + k;
       }
     });
-    const departures = lists.map((list) => {
-      list.sort((a, b) => a[0] - b[0]);
-      return {
-        time: Int32Array.from(list, (x) => x[0]),
-        train: Int32Array.from(list, (x) => x[1]),
-        pos: Int32Array.from(list, (x) => x[2]),
-      };
-    });
+    const departures = new Array(nStations);
+    for (let s = 0; s < nStations; s++) {
+      const a = counts[s], b = counts[s + 1];
+      const seg = keys.subarray(a, b).sort();
+      const time = new Int32Array(b - a), train = new Int32Array(b - a), pos = new Int32Array(b - a);
+      for (let i = 0; i < seg.length; i++) {
+        const k = seg[i] % 8388608;
+        time[i] = Math.round((seg[i] - k) / 8388608) - 4096;
+        train[i] = trainOf[k];
+        pos[i] = posOf[k];
+      }
+      departures[s] = { time, train, pos };
+    }
     return { date, trains, departures };
   }
 }
