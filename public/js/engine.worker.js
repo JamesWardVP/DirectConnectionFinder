@@ -15,9 +15,10 @@ self.onmessage = async ({ data }) => {
       const bundle = await res.json();
       const feed = decodeBundle(bundle);
       timetable = new Timetable(feed);
-      const used = new Set();
-      for (const t of feed.trips) for (const s of t.stations) used.add(s);
-      served = [...used];
+      // Calls per station: used to suggest busy stations first.
+      const calls = new Map();
+      for (const t of feed.trips) for (const s of t.stations) calls.set(s, (calls.get(s) || 0) + 1);
+      served = [...calls.keys()];
       self.postMessage({
         id,
         result: {
@@ -30,7 +31,7 @@ self.onmessage = async ({ data }) => {
           },
           stations: served.map((i) => {
             const s = feed.stations[i];
-            return { idx: s.idx, crs: s.crs, id: s.id, name: s.name, lat: s.lat, lon: s.lon };
+            return { idx: s.idx, crs: s.crs, id: s.id, name: s.name, lat: s.lat, lon: s.lon, calls: calls.get(i) };
           }),
         },
       });

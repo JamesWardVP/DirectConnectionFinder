@@ -76,9 +76,41 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Opens the live website in a real browser and uses it like a visitor.
+  # Runs even if this run's deploy did not happen, to test what is live.
+  test-live:
+    needs: deploy
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Test the live site
+        env:
+          SITE_URL: ${{ needs.deploy.outputs.page_url || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+        run: node scripts/test-live.mjs "$SITE_URL"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-site-screenshots
+          path: screenshots/

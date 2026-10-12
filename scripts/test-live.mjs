@@ -1,0 +1,121 @@
+// Tests the deployed website in a real browser (Chromium via Playwright),
+// the way a visitor uses it. Run by the GitHub Action after each deploy.
+//
+// Usage: node scripts/test-live.mjs https://<user>.github.io/<repo>/
+import fs from 'node:fs';
+import { chromium } from 'playwright';
+
+const url = process.argv[2];
+if (!url) throw new Error('Pass the site URL');
+fs.mkdirSync('screenshots', { recursive: true });
+
+const failures = [];
+const check = (ok, message) => {
+  console.log(`${ok ? '✓' : '✗'} ${message}`);
+  if (!ok) failures.push(message);
+};
+
+const browser = await chromium.launch();
+
+async function desktop() {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 860 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+  // GitHub Pages can take a minute to serve a new deployment everywhere.
+  let loaded = false;
+  for (let attempt = 1; attempt <= 6 && !loaded; attempt++) {
+    const res = await page.goto(url, { waitUntil: 'load' });
+    if (res && res.ok()) {
+      try {
+        await page.waitForFunction(() => /covers/.test(document.querySelector('#data-status')?.textContent || ''), null, { timeout: 60000 });
+        loaded = true;
+      } catch { /* retry */ }
+    }
+    if (!loaded) await page.waitForTimeout(15000);
+  }
+  check(loaded, 'page opens and the timetable loads');
+  if (!loaded) return;
+  const status = await page.textContent('#data-status');
+  console.log(`  status line: ${status}`);
+  check(!(await page.isVisible('#demo-banner')), 'real timetable (no demo banner)');
+
+  // Search London Kings Cross → Edinburgh tomorrow at 09:00.
+  const tomorrow = await page.evaluate(() => {
+    const d = new Date(Date.now() + 86400000);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  });
+  await page.fill('#from-input', 'Kings Cross');
+  await page.waitForSelector('#from-options li[role=option]');
+  await page.keyboard.press('Enter');
+  await page.fill('#to-input', 'Edinburgh');
+  await page.waitForSelector('#to-options li[role=option]');
+  await page.keyboard.press('Enter');
+  check(/Edinburgh Waverley/.test(await page.inputValue('#to-input')), '"Edinburgh" suggests Edinburgh Waverley first');
+  await page.fill('#date', tomorrow);
+  await page.fill('#time', '09:00');
+  const t0 = Date.now();
+  await page.click('.go');
+  await page.waitForSelector('.journey', { timeout: 60000 }).catch(() => {});
+  const searchMs = Date.now() - t0;
+  const cards = await page.$$eval('.journey .card', (els) => els.slice(0, 6).map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
+  console.log(`  search took ${searchMs} ms in the browser; first results:`);
+  cards.forEach((c) => console.log(`    ${c}`));
+  check(cards.length > 0, 'King\'s Cross → Edinburgh returns journeys');
+  check(await page.locator('.group-head', { hasText: 'Direct' }).count() > 0, 'direct trains are listed first');
+  const paths = await page.locator('.leaflet-overlay-pane path').count();
+  check(paths > 0, `route lines are drawn on the map (${paths} shapes)`);
+  await page.screenshot({ path: 'screenshots/1-results.png' });
+
+  // Open the first journey: line diagram, fare and buy links.
+  await page.click('.journey .card');
+  await page.waitForSelector('.detail');
+  const links = await page.$$eval('.detail .links a', (as) => as.map((a) => `${a.textContent.trim()} → ${a.href}`));
+  links.forEach((l) => console.log(`    ${l}`));
+  check(links.some((l) => l.includes('nationalrail.co.uk')), 'journey details have a National Rail link');
+  check(await page.locator('.detail .stop.major').count() >= 2, 'journey details show the line diagram');
+  await page.screenshot({ path: 'screenshots/2-journey.png' });
+
+  // Postcode search goes straight from the browser to postcodes.io.
+  await page.fill('#from-input', 'YO1 7HH');
+  const place = await page.waitForSelector('#from-options li[role=option] .opt-icon.place', { timeout: 20000 }).then(() => true).catch(() => false);
+  check(place, 'postcode lookup finds a place');
+
+  check(errors.length === 0, `no errors in the browser console${errors.length ? `: ${errors.join(' | ')}` : ''}`);
+  await page.close();
+}
+
+async function mobile() {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  await page.goto(url);
+  await page.waitForFunction(() => /covers/.test(document.querySelector('#data-status')?.textContent || ''), null, { timeout: 60000 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(overflow <= 0, 'phone layout fits the screen (no sideways scrolling)');
+  await page.fill('#from-input', 'Paddington');
+  await page.waitForSelector('#from-options li[role=option]');
+  await page.keyboard.press('Enter');
+  await page.fill('#to-input', 'Bristol Temple');
+  await page.waitForSelector('#to-options li[role=option]');
+  await page.keyboard.press('Enter');
+  await page.tap('.go');
+  const ok = await page.waitForSelector('.journey', { timeout: 60000 }).then(() => true).catch(() => false);
+  check(ok, 'search works on a phone (Paddington → Bristol)');
+  await page.screenshot({ path: 'screenshots/3-phone.png' });
+  await page.close();
+}
+
+try {
+  await desktop();
+  await mobile();
+} catch (err) {
+  check(false, `test crashed: ${err.message}`);
+} finally {
+  await browser.close();
+}
+
+if (failures.length) {
+  console.error(`\n${failures.length} check(s) failed`);
+  process.exit(1);
+}
+console.log('\nThe live site works.');

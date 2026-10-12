@@ -47,7 +47,9 @@ export class Engine {
       else if (name.includes(q)) score = 3;
       if (score >= 0) scored.push([score, s]);
     }
-    scored.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name));
+    // Best match first; among equal matches, the busiest station first
+    // (so "Edinburgh" suggests Edinburgh Waverley before Edinburgh Gateway).
+    scored.sort((a, b) => a[0] - b[0] || (b[1].calls || 0) - (a[1].calls || 0) || a[1].name.localeCompare(b[1].name));
     return scored.slice(0, 12).map(([, s]) => s);
   }
 
