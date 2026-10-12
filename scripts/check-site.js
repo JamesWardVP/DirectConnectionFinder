@@ -61,9 +61,13 @@ run('Norwich → Penzance (changes needed)', { from: station('NRW'), to: station
 });
 run('London Euston → Inverness, overnight', { from: station('EUS'), to: station('INV'), time: '20:00', windowMins: 180, maxChanges: 1 }, (r) => {
   check(r.journeys.some((j) => j.arrive.dayOffset === 1), 'EUS-INV: expected an overnight journey arriving the next day');
+  check(r.journeys.every((j) => j.duration < 16 * 60), 'EUS-INV: journey times should be under 16 hours');
 });
 
 check(feed.trips.length > 20000, 'fewer trips than expected for a national timetable');
+// No train should take more than a day between consecutive calls.
+const broken = feed.trips.filter((t) => t.arr[t.arr.length - 1] - t.dep[0] > 24 * 60);
+check(broken.length === 0, `${broken.length} trains run for more than 24 hours (e.g. ${broken.slice(0, 3).map((t) => t.id).join(', ')})`);
 }
 
 if (failures.length) {

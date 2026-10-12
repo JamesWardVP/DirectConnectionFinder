@@ -44,6 +44,11 @@ const lines = [
   // Late train across midnight with pick-up-only and set-down-only calls.
   BS('B00001', '261001', '261231', '1111100', 'P', { headcode: '1S99' }), BX('CS'),
   LO('KNGX', '2330'), LI('PBRO', '0010', '0012', 'U'), LI('YORK', '0130', '0132', 'D'), LT('EDINBUR', '0400'),
+  // Sleeper picking up just before midnight with no public arrival time.
+  BS('D00001', '261001', '261231', '1111100', 'P', { headcode: '1S25' }), BX('CS'),
+  LO('KNGX', '2300'),
+  rec([0, 'LI'], [2, pad('PBRO', 8)], [10, '2358 '], [15, '2359 '], [25, '0000'], [29, '2359'], [42, pad('U', 12)]),
+  LT('EDINBUR', '0700'),
   // Divide at York: C00001 continues to Edinburgh, C00002 goes to Scarborough.
   BS('C00001', '261001', '261231', '1111100', 'P', { headcode: '1S02' }), BX('GR'),
   LO('KNGX', '0900'), LI('YORK', '1130', '1135'), LT('EDINBUR', '1400'),
@@ -110,6 +115,12 @@ test('times run on past midnight and pick-up / set-down only calls are honoured'
   assert.equal(search('KGX', 'PBO', '2026-10-13', '23:00', { maxChanges: 0 }).journeys.length, 0);
   // ...and York is set-down only, so you cannot board there.
   assert.equal(search('YRK', 'EDB', '2026-10-14', '00:00', { maxChanges: 0 }).journeys.length, 0);
+});
+
+test('a stop just before midnight does not push the rest of the train a day on', () => {
+  const t = feed.trips.find((x) => x.id.startsWith('D00001'));
+  assert.deepEqual([...t.dep], [23 * 60, 23 * 60 + 59, 31 * 60]);
+  assert.deepEqual([...t.arr], [23 * 60, 23 * 60 + 58, 31 * 60]);
 });
 
 test('a dividing train is direct for passengers in the portion that continues', () => {
