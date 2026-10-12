@@ -49,6 +49,13 @@ const lines = [
   LO('KNGX', '2300'),
   rec([0, 'LI'], [2, pad('PBRO', 8)], [10, '2358 '], [15, '2359 '], [25, '0000'], [29, '2359'], [42, pad('U', 12)]),
   LT('EDINBUR', '0700'),
+  // Real pattern from the Caledonian Sleeper: at a pick-up-only stop the
+  // public departure (21:33) is a minute before the working arrival (21:34).
+  BS('E00001', '261001', '261231', '1111100', 'P', { headcode: '1B16' }), BX('CS'),
+  LO('EDINBUR', '2036'),
+  rec([0, 'LI'], [2, pad('YORK', 8)], [10, '2134 '], [15, '2135H'], [25, '0000'], [29, '2133'], [42, pad('U', 12)]),
+  rec([0, 'LI'], [2, pad('PBRO', 8)], [10, '0510 '], [15, '0512 '], [25, '0510'], [29, '0000'], [42, pad('D', 12)]),
+  LT('KNGX', '0700'),
   // Divide at York: C00001 continues to Edinburgh, C00002 goes to Scarborough.
   BS('C00001', '261001', '261231', '1111100', 'P', { headcode: '1S02' }), BX('GR'),
   LO('KNGX', '0900'), LI('YORK', '1130', '1135'), LT('EDINBUR', '1400'),
@@ -120,7 +127,14 @@ test('times run on past midnight and pick-up / set-down only calls are honoured'
 test('a stop just before midnight does not push the rest of the train a day on', () => {
   const t = feed.trips.find((x) => x.id.startsWith('D00001'));
   assert.deepEqual([...t.dep], [23 * 60, 23 * 60 + 59, 31 * 60]);
-  assert.deepEqual([...t.arr], [23 * 60, 23 * 60 + 58, 31 * 60]);
+  // No public arrival at a pick-up-only stop: the public departure is used.
+  assert.deepEqual([...t.arr], [23 * 60, 23 * 60 + 59, 31 * 60]);
+});
+
+test('public times a minute before working times do not add a day', () => {
+  const t = feed.trips.find((x) => x.id.startsWith('E00001'));
+  assert.deepEqual([...t.dep], [20 * 60 + 36, 21 * 60 + 33, 29 * 60 + 10, 31 * 60]);
+  assert.deepEqual([...t.arr], [20 * 60 + 36, 21 * 60 + 33, 29 * 60 + 10, 31 * 60]);
 });
 
 test('a dividing train is direct for passengers in the portion that continues', () => {
