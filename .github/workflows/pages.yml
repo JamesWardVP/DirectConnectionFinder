@@ -58,6 +58,17 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: npm run build
 
+      - name: Check timetable with real searches
+        run: node scripts/check-site.js dist
+
+      - name: Show raw timetable records for trains that failed the check
+        if: failure() && steps.timetable.outputs.source == 'cif'
+        run: |
+          for uid in $(cat broken-uids.txt 2>/dev/null | sort -u); do
+            echo "=== $uid"
+            zcat timetable/toc-full.CIF.gz | grep -A40 "^BS.$uid" | awk 'NR>1 && /^BS/ {exit} {print}' | head -60
+          done
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
