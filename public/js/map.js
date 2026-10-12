@@ -5,12 +5,12 @@ const GB_CENTER = [54.3, -2.6];
 const LINE_WEIGHT = 6;
 
 export class RouteMap {
-  constructor(el, { onRouteHover, onRouteClick, onMapClick } = {}) {
+  constructor(el, { onRouteHover, onRouteClick, onMapClick, onEmptyClick } = {}) {
     this.map = L.map(el, { zoomSnap: 0.25, zoomControl: true, attributionControl: true, minZoom: 5, maxZoom: 15 })
       .setView(GB_CENTER, 6);
     this.map.attributionControl.setPrefix(false);
     this.map.attributionControl.addAttribution('Coastline: Natural Earth');
-    this.callbacks = { onRouteHover, onRouteClick, onMapClick };
+    this.callbacks = { onRouteHover, onRouteClick, onMapClick, onEmptyClick };
     this.landLayer = L.layerGroup().addTo(this.map);
     this.areaLayer = L.layerGroup().addTo(this.map);
     this.routeLayer = L.layerGroup().addTo(this.map);
@@ -21,7 +21,18 @@ export class RouteMap {
     this.street = null;
 
     this.map.createPane('land').style.zIndex = 250;
-    this.map.on('click', (e) => this.callbacks.onMapClick?.(e.latlng));
+    // One tooltip for routes, opened and closed by hand. It closes whenever
+    // the pointer is not over a route, so it can never be left behind.
+    this.tip = L.tooltip({ className: 'route-tip', direction: 'top', offset: [0, -10], interactive: false });
+    this.hovered = null;
+    const isRoute = (e) => e.originalEvent?.target?.classList?.contains('route-hit');
+    this.map.on('mousemove', (e) => { if (!isRoute(e)) this.clearHover(); });
+    this.map.getContainer().addEventListener('mouseleave', () => this.clearHover());
+    this.map.on('click', (e) => {
+      if (isRoute(e)) return;
+      this.callbacks.onMapClick?.(e.latlng);
+      this.callbacks.onEmptyClick?.();
+    });
     this.map.on('zoomend', () => this.placeLabels());
     this.loadCoastline();
   }
@@ -134,43 +145,72 @@ export class RouteMap {
         group.addLayer(line);
       }
       // A wide invisible line makes thin dotted routes easy to hover and click.
-      const hit = route.segments.map((seg) => L.polyline(seg.coords, { color: '#000', opacity: 0, weight: 16 }));
-      hit.forEach((h) => group.addLayer(h));
-      group.bindTooltip(
-        `<strong>${changesLabel(route.changes)}</strong> · ${route.journeyIds.length} train time${route.journeyIds.length > 1 ? 's' : ''}<br>${escapeHtml(route.summary)}`,
-        { sticky: true, className: 'route-tip' },
-      );
-      group.on('mouseover', () => this.callbacks.onRouteHover?.(route.id, true));
-      group.on('mouseout', () => this.callbacks.onRouteHover?.(route.id, false));
-      group.on('click', (e) => { L.DomEvent.stopPropagation(e); this.callbacks.onRouteClick?.(route.id); });
+      for (const seg of route.segments) {
+        group.addLayer(L.polyline(seg.coords, { color: '#000', opacity: 0, weight: 18, className: 'route-hit' }));
+      }
+      group.on('mousemove', (e) => this.setHover(route, e.latlng));
+      group.on('mouseout', () => this.clearHover());
+      group.on('click', (e) => {
+        L.DomEvent.stopPropagation(e);
+        this.clearHover();
+        this.callbacks.onRouteClick?.(route.id);
+      });
       group.addTo(this.routeLayer);
       this.routeShapes.set(route.id, { group, lines, route, t });
     }
 
-    // Interchange circles at change stations, labels at key stations.
+    this.endpoints = endpoints;
+    this.drawStations();
+  }
+
+  /**
+   * Interchange circles at change stations and labels at key stations. With
+   * a route selected, only that route's stations are shown, including every
+   * calling point.
+   */
+  drawStations() {
+    this.stationLayer.clearLayers();
     this.labelCandidates = [];
+    const stations = this.stations;
+    const selected = this.selected ? this.routeShapes.get(this.selected)?.route : null;
+    const routes = selected ? [selected] : this.routes.slice(0, 40);
+    const endpointSet = selected
+      ? new Set([selected.segments[0].stations[0], selected.segments.at(-1).stations.at(-1)])
+      : new Set(this.endpoints);
     const changeSet = new Set();
-    routes.slice(0, 40).forEach((r) => r.changeStations.forEach((s) => changeSet.add(s)));
+    routes.forEach((r) => r.changeStations.forEach((s) => changeSet.add(s)));
+
+    if (selected) {
+      for (const seg of selected.segments) {
+        if (seg.type !== 'train') continue;
+        for (const idx of seg.stations.slice(1, -1)) {
+          const s = stations.get(idx);
+          if (!s || changeSet.has(idx) || endpointSet.has(idx)) continue;
+          L.circleMarker([s.lat, s.lon], { radius: 4, color: rankColor(seg.color, 0), weight: 2.5, fillColor: '#fff', fillOpacity: 1, interactive: false })
+            .addTo(this.stationLayer);
+          this.label(s, 'minor', 2);
+        }
+      }
+    }
     for (const idx of changeSet) {
       const s = stations.get(idx);
-      if (!s) continue;
+      if (!s || endpointSet.has(idx)) continue;
       L.circleMarker([s.lat, s.lon], { radius: 7, color: '#111', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false })
         .addTo(this.stationLayer);
-      this.label(s, 'minor');
+      this.label(s, selected ? 'change' : 'minor', 1);
     }
-    const endpointSet = new Set(endpoints);
     for (const idx of endpointSet) {
       const s = stations.get(idx);
       if (!s) continue;
       L.circleMarker([s.lat, s.lon], { radius: 9, color: '#111', weight: 4, fillColor: '#fff', fillOpacity: 1, interactive: false })
         .addTo(this.stationLayer);
-      this.label(s, 'endpoint');
+      this.label(s, 'endpoint', 0);
     }
     this.placeLabels();
   }
 
-  label(s, cls) {
-    this.labelCandidates.push({ s, cls, priority: cls === 'endpoint' ? 0 : 1 });
+  label(s, cls, priority) {
+    this.labelCandidates.push({ s, cls, priority });
   }
 
   /** Place station labels, skipping any that would collide with one already placed. */
@@ -182,7 +222,7 @@ export class RouteMap {
     const sorted = [...this.labelCandidates].sort((a, b) => a.priority - b.priority);
     for (const { s, cls } of sorted) {
       const pt = this.map.latLngToContainerPoint([s.lat, s.lon]);
-      const w = s.name.length * (cls === 'endpoint' ? 8.4 : 7) + 4;
+      const w = s.name.length * (cls === 'endpoint' ? 8.4 : cls === 'change' ? 7.6 : 7) + 4;
       const h = cls === 'endpoint' ? 18 : 15;
       const right = [pt.x + 10, pt.y - h / 2, pt.x + 12 + w, pt.y + h / 2];
       const left = [pt.x - 12 - w, pt.y - h / 2, pt.x - 10, pt.y + h / 2];
@@ -205,44 +245,58 @@ export class RouteMap {
     if (b && b.isValid()) this.map.fitBounds(b, { padding: [50, 50], maxZoom: 11, animate: false });
   }
 
-  /** Temporarily emphasise a route (hover). */
+  setHover(route, latlng) {
+    if (this.hovered !== route.id) {
+      this.clearHover();
+      this.hovered = route.id;
+      this.tip.setContent(`<strong>${changesLabel(route.changes)}</strong> · ${route.journeyIds.length} train time${route.journeyIds.length > 1 ? 's' : ''}<br>${escapeHtml(route.summary)}<br><span class="tip-hint">Click to see this route</span>`);
+      this.highlight(route.id, true);
+      this.callbacks.onRouteHover?.(route.id, true);
+    }
+    this.tip.setLatLng(latlng);
+    if (!this.map.hasLayer(this.tip)) this.tip.addTo(this.map);
+  }
+
+  clearHover() {
+    if (this.map.hasLayer(this.tip)) this.map.removeLayer(this.tip);
+    if (this.hovered == null) return;
+    const id = this.hovered;
+    this.hovered = null;
+    this.highlight(id, false);
+    this.callbacks.onRouteHover?.(id, false);
+  }
+
+  /** Emphasise a route while hovered (here or in the list). Never reorders the DOM. */
   highlight(routeId, on) {
     if (this.selected) return;
     const shape = this.routeShapes.get(routeId);
     if (!shape) return;
-    if (on) shape.group.bringToFront();
     for (const line of shape.lines) line.setStyle({ weight: on ? LINE_WEIGHT + 3 : LINE_WEIGHT });
   }
 
-  /** Select a route: everything else fades; calling points appear. */
-  select(routeId, { fit = true } = {}) {
+  /**
+   * Select a route: every other route is hidden and its stations are
+   * labelled. routeId null shows all routes again.
+   */
+  select(routeId, { fit = true, padRight = 0, padBottom = 0 } = {}) {
+    if (routeId != null && !this.routeShapes.has(routeId)) routeId = null;
+    this.clearHover();
     this.selected = routeId;
-    if (this.callingLayer) this.map.removeLayer(this.callingLayer);
-    this.callingLayer = null;
     for (const [id, shape] of this.routeShapes) {
-      const active = routeId == null || id === routeId;
-      shape.group.eachLayer((l) => {
-        if (l.options.opacity === 0) return;
-        l.setStyle({ opacity: active ? 1 : 0.12 });
-      });
+      const show = routeId == null || id === routeId;
+      if (show && !this.routeLayer.hasLayer(shape.group)) this.routeLayer.addLayer(shape.group);
+      if (!show && this.routeLayer.hasLayer(shape.group)) this.routeLayer.removeLayer(shape.group);
       for (const line of shape.lines) line.setStyle({ weight: id === routeId ? LINE_WEIGHT + 2 : LINE_WEIGHT });
     }
-    if (routeId == null) return;
-    const shape = this.routeShapes.get(routeId);
-    if (!shape) return;
-    shape.group.bringToFront();
-    this.callingLayer = L.layerGroup();
-    for (const seg of shape.route.segments) {
-      if (seg.type !== 'train') continue;
-      seg.stations.slice(1, -1).forEach((idx) => {
-        const s = this.stations.get(idx);
-        if (!s) return;
-        L.circleMarker([s.lat, s.lon], { radius: 3.5, color: rankColor(seg.color, 0), weight: 2, fillColor: '#fff', fillOpacity: 1 })
-          .bindTooltip(escapeHtml(s.name), { direction: 'top', offset: [0, -3] })
-          .addTo(this.callingLayer);
+    if (routeId == null) {
+      // Put the routes back in rank order (best on top).
+      for (const r of [...this.routes].reverse()) this.routeShapes.get(r.id)?.group.bringToFront();
+    }
+    this.drawStations();
+    if (routeId != null && fit) {
+      this.map.fitBounds(this.routeShapes.get(routeId).group.getBounds(), {
+        paddingTopLeft: [40, 40], paddingBottomRight: [40 + padRight, 40 + padBottom], maxZoom: 11, animate: false,
       });
     }
-    this.callingLayer.addTo(this.map);
-    if (fit) this.map.fitBounds(shape.group.getBounds(), { padding: [60, 60], maxZoom: 11, animate: false });
   }
 }

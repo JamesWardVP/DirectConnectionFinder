@@ -48,8 +48,16 @@
               <ul id="from-options" class="options" role="listbox" hidden></ul>
             </div>
             <div class="radius">
-              <input id="from-radius" type="range" min="0" max="25" step="1" value="0" aria-label="Radius around start">
-              <output for="from-radius" id="from-radius-out">This station only</output>
+              <div class="radius-head">
+                <label for="from-radius">Also search stations nearby (miles)</label>
+                <output for="from-radius" id="from-radius-out" aria-live="polite">This station only</output>
+              </div>
+              <div class="radius-row">
+                <button type="button" class="step" data-for="from-radius" data-step="-1" aria-label="Smaller radius around start">−</button>
+                <input id="from-radius" type="range" min="0" max="25" step="1" value="0" aria-describedby="from-radius-out">
+                <button type="button" class="step" data-for="from-radius" data-step="1" aria-label="Larger radius around start">+</button>
+              </div>
+              <div class="ticks" aria-hidden="true"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span></div>
             </div>
           </div>
 
@@ -67,8 +75,16 @@
               <ul id="to-options" class="options" role="listbox" hidden></ul>
             </div>
             <div class="radius">
-              <input id="to-radius" type="range" min="0" max="25" step="1" value="0" aria-label="Radius around destination">
-              <output for="to-radius" id="to-radius-out">This station only</output>
+              <div class="radius-head">
+                <label for="to-radius">Also search stations nearby (miles)</label>
+                <output for="to-radius" id="to-radius-out" aria-live="polite">This station only</output>
+              </div>
+              <div class="radius-row">
+                <button type="button" class="step" data-for="to-radius" data-step="-1" aria-label="Smaller radius around destination">−</button>
+                <input id="to-radius" type="range" min="0" max="25" step="1" value="0" aria-describedby="to-radius-out">
+                <button type="button" class="step" data-for="to-radius" data-step="1" aria-label="Larger radius around destination">+</button>
+              </div>
+              <div class="ticks" aria-hidden="true"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span></div>
             </div>
           </div>
         </div>
@@ -166,6 +182,7 @@
 
     <section class="map-wrap" aria-label="Route map">
       <div id="map"></div>
+      <aside id="route-panel" class="route-panel" aria-label="Selected route" hidden></aside>
       <div id="pick-hint" class="pick-hint" hidden>Click the map to set <strong></strong> <button type="button" id="cancel-pick">Cancel</button></div>
       <div class="legend" id="legend">
         <div class="legend-title">Key</div>
