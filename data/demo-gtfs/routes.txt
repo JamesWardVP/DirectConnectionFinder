@@ -1,0 +1,50 @@
+route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color
+GR-EDB,GR,GR,London Kings Cross – Edinburgh,2,CE0E2D,FFFFFF
+GR-EDB-S,GR,GR,London Kings Cross – Edinburgh (stopping),2,CE0E2D,FFFFFF
+GR-LDS,GR,GR,London Kings Cross – Leeds,2,CE0E2D,FFFFFF
+HT-HUL,HT,HT,London Kings Cross – Hull,2,2E3B8F,FFFFFF
+LD-EDB,LD,LD,London Kings Cross – Edinburgh (Lumo),2,1F45FC,FFFFFF
+VT-MAN,VT,VT,London Euston – Manchester,2,00687A,FFFFFF
+VT-BHM,VT,VT,London Euston – Birmingham,2,00687A,FFFFFF
+VT-GLC,VT,VT,London Euston – Glasgow,2,00687A,FFFFFF
+VT-LIV,VT,VT,London Euston – Liverpool,2,00687A,FFFFFF
+VT-HHD,VT,VT,London Euston – Holyhead,2,00687A,FFFFFF
+GW-BRI,GW,GW,London Paddington – Bristol,2,0A493E,FFFFFF
+GW-SWA,GW,GW,London Paddington – Swansea,2,0A493E,FFFFFF
+GW-PNZ,GW,GW,London Paddington – Penzance,2,0A493E,FFFFFF
+GW-OXF,GW,GW,London Paddington – Oxford,2,0A493E,FFFFFF
+EM-SHF,EM,EM,London St Pancras – Sheffield,2,713563,FFFFFF
+EM-NOT,EM,EM,London St Pancras – Nottingham,2,713563,FFFFFF
+XC-NE,XC,XC,Plymouth – Edinburgh,2,9B1B30,FFFFFF
+XC-SC,XC,XC,Manchester – Bournemouth,2,9B1B30,FFFFFF
+TP-NCL,TP,TP,Liverpool – Newcastle,2,0096D6,FFFFFF
+TP-SCA,TP,TP,Manchester Airport – Scarborough,2,0096D6,FFFFFF
+TP-CLE,TP,TP,Manchester Airport – Cleethorpes,2,0096D6,FFFFFF
+TP-EDB,TP,TP,Manchester Airport – Edinburgh,2,0096D6,FFFFFF
+NT-CAL,NT,NT,Leeds – Manchester Victoria (Calder Valley),2,262262,FFFFFF
+NT-SHF,NT,NT,Sheffield – Leeds,2,262262,FFFFFF
+NT-HPV,NT,NT,Manchester – Sheffield (Hope Valley),2,262262,FFFFFF
+NT-HUL,NT,NT,Leeds – Hull,2,262262,FFFFFF
+SR-GLQ,SR,SR,Edinburgh – Glasgow Queen Street,2,1E467D,FFFFFF
+SR-ABD,SR,SR,Edinburgh – Aberdeen,2,1E467D,FFFFFF
+SR-INV,SR,SR,Glasgow Queen Street – Inverness,2,1E467D,FFFFFF
+SR-PTH,SR,SR,Edinburgh – Perth,2,1E467D,FFFFFF
+SN-BTN,SN,SN,London Victoria – Brighton,2,7DBA3C,FFFFFF
+TL-BTN,TL,TL,Bedford – Brighton,2,E9438B,FFFFFF
+TL-CBG,TL,TL,Cambridge – London Bridge,2,E9438B,FFFFFF
+SW-WEY,SW,SW,London Waterloo – Weymouth,2,3F5AA8,FFFFFF
+SW-EXD,SW,SW,London Waterloo – Exeter,2,3F5AA8,FFFFFF
+LE-NRW,LE,LE,London Liverpool Street – Norwich,2,D70428,FFFFFF
+LE-CBG,LE,LE,London Liverpool Street – Cambridge,2,D70428,FFFFFF
+GN-KLN,GN,GN,London Kings Cross – Kings Lynn,2,6B2C91,FFFFFF
+CH-BMO,CH,CH,London Marylebone – Birmingham Moor Street,2,00A1E0,FFFFFF
+CH-OXF,CH,CH,London Marylebone – Oxford,2,00A1E0,FFFFFF
+LM-LIV,LM,LM,Birmingham – Liverpool,2,E87722,FFFFFF
+AW-MAN,AW,AW,Cardiff – Manchester,2,E3002B,FFFFFF
+AW-HHD,AW,AW,Cardiff – Holyhead,2,E3002B,FFFFFF
+CC-SOC,CC,CC,London Fenchurch Street – Southend,2,B7007C,FFFFFF
+SE-DVP,SE,SE,London St Pancras – Dover (High Speed),2,00AFE8,FFFFFF
+SE-CBW,SE,SE,London St Pancras – Canterbury West (High Speed),2,00AFE8,FFFFFF
+SE-HGS,SE,SE,London Charing Cross – Hastings,2,00AFE8,FFFFFF
+CS-INV,CS,CS,Caledonian Sleeper London – Inverness,2,1D2D44,FFFFFF
+CS-EUS,CS,CS,Caledonian Sleeper Inverness – London,2,1D2D44,FFFFFF

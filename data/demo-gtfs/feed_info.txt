@@ -1,0 +1,2 @@
+feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version
+Direct Connection Finder DEMO timetable (synthetic times),https://github.com/JamesWardVP/DirectConnectionFinder,en,20260101,20271231,demo-1

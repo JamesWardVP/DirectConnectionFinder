@@ -1,0 +1,22 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang
+GR,LNER,https://www.lner.co.uk,Europe/London,en
+VT,Avanti West Coast,https://www.avantiwestcoast.co.uk,Europe/London,en
+GW,Great Western Railway,https://www.gwr.com,Europe/London,en
+EM,East Midlands Railway,https://www.eastmidlandsrailway.co.uk,Europe/London,en
+XC,CrossCountry,https://www.crosscountrytrains.co.uk,Europe/London,en
+TP,TransPennine Express,https://www.tpexpress.co.uk,Europe/London,en
+NT,Northern,https://www.northernrailway.co.uk,Europe/London,en
+SR,ScotRail,https://www.scotrail.co.uk,Europe/London,en
+SN,Southern,https://www.southernrailway.com,Europe/London,en
+TL,Thameslink,https://www.thameslinkrailway.com,Europe/London,en
+SW,South Western Railway,https://www.southwesternrailway.com,Europe/London,en
+LE,Greater Anglia,https://www.greateranglia.co.uk,Europe/London,en
+GN,Great Northern,https://www.greatnorthernrail.com,Europe/London,en
+CH,Chiltern Railways,https://www.chilternrailways.co.uk,Europe/London,en
+LM,West Midlands Railway,https://www.westmidlandsrailway.co.uk,Europe/London,en
+AW,Transport for Wales,https://tfw.wales,Europe/London,en
+CC,c2c,https://www.c2c-online.co.uk,Europe/London,en
+SE,Southeastern,https://www.southeasternrailway.co.uk,Europe/London,en
+HT,Hull Trains,https://www.hulltrains.co.uk,Europe/London,en
+LD,Lumo,https://www.lumo.co.uk,Europe/London,en
+CS,Caledonian Sleeper,https://www.sleeper.scot,Europe/London,en

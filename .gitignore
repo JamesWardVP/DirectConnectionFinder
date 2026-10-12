@@ -1,0 +1,5 @@
+node_modules/
+.env
+*.log
+data/gtfs/
+.DS_Store

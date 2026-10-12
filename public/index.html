@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Direct Connection Finder</title>
+  <meta name="description" content="Find direct and connecting UK train routes between places, including nearby stations, on a Tube-style map.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='13' width='20' height='6' fill='%23111'/%3E%3Ccircle cx='8' cy='16' r='6' fill='%23fff' stroke='%23111' stroke-width='3'/%3E%3Ccircle cx='24' cy='16' r='6' fill='%23fff' stroke='%23111' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hammersmith+One&display=swap">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 48 24" aria-hidden="true">
+        <rect x="10" y="9" width="28" height="6" fill="currentColor"/>
+        <circle cx="12" cy="12" r="8" fill="#fff" stroke="currentColor" stroke-width="4"/>
+        <circle cx="36" cy="12" r="8" fill="#fff" stroke="currentColor" stroke-width="4"/>
+      </svg>
+      <div>
+        <h1>Direct Connection Finder</h1>
+        <p class="tagline">Every train between two places, direct first</p>
+      </div>
+    </div>
+    <div class="stripes" aria-hidden="true">
+      <span style="--c:#DC241F"></span><span style="--c:#FFD300"></span><span style="--c:#00782A"></span><span style="--c:#0019A8"></span><span style="--c:#9B0056"></span><span style="--c:#00A4A7"></span><span style="--c:#F3A9BB"></span>
+    </div>
+  </header>
+
+  <div id="demo-banner" class="banner" hidden>
+    <strong>Demo timetable.</strong> Stations, routes and operators are real, but times and fares are made up so you can try the site. Load a real GTFS timetable to plan actual journeys. See the README.
+  </div>
+
+  <main class="layout">
+    <section class="panel" aria-label="Search and results">
+      <form id="search-form" class="search" autocomplete="off" novalidate>
+        <div class="endpoints">
+          <div class="endpoint" data-side="from">
+            <label class="field-label" for="from-input"><span class="pin pin-a">A</span> From</label>
+            <div class="combo">
+              <input id="from-input" type="text" placeholder="Station, town or postcode" role="combobox" aria-expanded="false" aria-controls="from-options" aria-autocomplete="list">
+              <button type="button" class="icon-btn pick-btn" data-side="from" title="Choose on the map" aria-label="Choose start on the map">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+              </button>
+              <ul id="from-options" class="options" role="listbox" hidden></ul>
+            </div>
+            <div class="radius">
+              <input id="from-radius" type="range" min="0" max="25" step="1" value="0" aria-label="Radius around start">
+              <output for="from-radius" id="from-radius-out">This station only</output>
+            </div>
+          </div>
+
+          <button type="button" id="swap" class="icon-btn swap" title="Swap" aria-label="Swap start and destination">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l-4 4h3v7h2V8h3L7 4zm10 16l4-4h-3V9h-2v7h-3l4 4z"/></svg>
+          </button>
+
+          <div class="endpoint" data-side="to">
+            <label class="field-label" for="to-input"><span class="pin pin-b">B</span> To</label>
+            <div class="combo">
+              <input id="to-input" type="text" placeholder="Station, town or postcode" role="combobox" aria-expanded="false" aria-controls="to-options" aria-autocomplete="list">
+              <button type="button" class="icon-btn pick-btn" data-side="to" title="Choose on the map" aria-label="Choose destination on the map">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+              </button>
+              <ul id="to-options" class="options" role="listbox" hidden></ul>
+            </div>
+            <div class="radius">
+              <input id="to-radius" type="range" min="0" max="25" step="1" value="0" aria-label="Radius around destination">
+              <output for="to-radius" id="to-radius-out">This station only</output>
+            </div>
+          </div>
+        </div>
+
+        <fieldset class="when">
+          <legend class="field-label">When</legend>
+          <div class="segmented" role="radiogroup" aria-label="Kind of search">
+            <label><input type="radio" name="mode" value="date" checked><span>On a date</span></label>
+            <label><input type="radio" name="mode" value="time"><span>Any date</span></label>
+            <label><input type="radio" name="mode" value="days"><span>Days of week</span></label>
+          </div>
+
+          <div class="mode-panel" data-modes="date time">
+            <div class="row">
+              <div class="segmented small" role="radiogroup" aria-label="Depart or arrive">
+                <label><input type="radio" name="timeType" value="depart" checked><span>Leave after</span></label>
+                <label><input type="radio" name="timeType" value="arrive"><span>Arrive by</span></label>
+              </div>
+            </div>
+            <div class="row">
+              <label class="inline" data-modes="date"><span>Date</span><input type="date" id="date" required></label>
+              <label class="inline"><span>Time</span><input type="time" id="time" value="09:00" required></label>
+              <label class="inline"><span>Within</span>
+                <select id="window">
+                  <option value="60">1 hour</option>
+                  <option value="120" selected>2 hours</option>
+                  <option value="180">3 hours</option>
+                  <option value="360">6 hours</option>
+                  <option value="720">12 hours</option>
+                </select>
+              </label>
+            </div>
+            <p class="hint" data-modes="time">Checks each of the next 7 days and groups trains that run at the same time on several days.</p>
+          </div>
+
+          <div class="mode-panel" data-modes="days" hidden>
+            <div class="days" role="group" aria-label="Days of the week">
+              <label><input type="checkbox" name="day" value="0" checked><span>Mon</span></label>
+              <label><input type="checkbox" name="day" value="1" checked><span>Tue</span></label>
+              <label><input type="checkbox" name="day" value="2" checked><span>Wed</span></label>
+              <label><input type="checkbox" name="day" value="3" checked><span>Thu</span></label>
+              <label><input type="checkbox" name="day" value="4" checked><span>Fri</span></label>
+              <label><input type="checkbox" name="day" value="5"><span>Sat</span></label>
+              <label><input type="checkbox" name="day" value="6"><span>Sun</span></label>
+            </div>
+            <label class="inline"><span>Look ahead</span>
+              <select id="weeks">
+                <option value="1" selected>1 week</option>
+                <option value="2">2 weeks</option>
+                <option value="4">4 weeks</option>
+              </select>
+            </label>
+            <p class="hint">Searches the whole day, any time, on the days you pick.</p>
+          </div>
+        </fieldset>
+
+        <details class="more">
+          <summary>More options</summary>
+          <div class="row">
+            <span class="field-label">Changes at most</span>
+            <div class="segmented small" role="radiogroup" aria-label="Maximum changes">
+              <label><input type="radio" name="maxChanges" value="0"><span>Direct</span></label>
+              <label><input type="radio" name="maxChanges" value="1"><span>1</span></label>
+              <label><input type="radio" name="maxChanges" value="2" checked><span>2</span></label>
+              <label><input type="radio" name="maxChanges" value="3"><span>3</span></label>
+            </div>
+          </div>
+          <div class="row">
+            <label class="inline"><span>Change time</span>
+              <select id="minChange">
+                <option value="3">3 min</option>
+                <option value="5" selected>5 min</option>
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+              </select>
+            </label>
+            <label class="inline"><span>Then sort by</span>
+              <select id="sort">
+                <option value="duration" selected>Journey time</option>
+                <option value="departure">Departure</option>
+                <option value="arrival">Arrival</option>
+              </select>
+            </label>
+          </div>
+          <label class="check"><input type="checkbox" id="showBeaten"> Show slower routes that a train with fewer changes beats</label>
+        </details>
+
+        <button type="submit" class="go">Find trains</button>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </form>
+
+      <section id="results" class="results" aria-live="polite"></section>
+    </section>
+
+    <section class="map-wrap" aria-label="Route map">
+      <div id="map"></div>
+      <div id="pick-hint" class="pick-hint" hidden>Click the map to set <strong></strong> <button type="button" id="cancel-pick">Cancel</button></div>
+      <div class="legend" id="legend">
+        <div class="legend-title">Key</div>
+        <ul>
+          <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line"/></svg>Direct</li>
+          <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="12 7"/></svg>1 change</li>
+          <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="0.1 9" stroke-linecap="round"/></svg>2 changes</li>
+          <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="14 5 0.1 5" stroke-linecap="round"/></svg>3 changes</li>
+          <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" stroke="#111" stroke-width="7"/><line x1="3" y1="5" x2="57" y2="5" stroke="#fff" stroke-width="3"/></svg>Walk or Tube</li>
+        </ul>
+        <div class="legend-sat"><span>Best</span><i></i><span>Worse</span></div>
+        <label class="check small"><input type="checkbox" id="streetmap"> Street map</label>
+      </div>
+    </section>
+  </main>
+
+  <template id="tpl-empty">
+    <div class="empty">
+      <svg viewBox="0 0 220 60" aria-hidden="true">
+        <line x1="20" y1="30" x2="200" y2="30" stroke="#0019A8" stroke-width="8"/>
+        <line x1="20" y1="30" x2="110" y2="30" stroke="#DC241F" stroke-width="8"/>
+        <circle cx="20" cy="30" r="10" fill="#fff" stroke="#111" stroke-width="4"/>
+        <circle cx="110" cy="30" r="10" fill="#fff" stroke="#111" stroke-width="4"/>
+        <circle cx="200" cy="30" r="10" fill="#fff" stroke="#111" stroke-width="4"/>
+      </svg>
+      <p>Pick where you're starting and where you're going. Widen the radius to include nearby stations too.</p>
+    </div>
+  </template>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
