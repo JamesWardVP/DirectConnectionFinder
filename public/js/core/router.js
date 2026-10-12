@@ -170,12 +170,18 @@ function rideTrain(train, ti, boardPos, fromStation, k, L, marked, updates, orig
   }
 }
 
+/**
+ * Walking links from stations reached by train in round k. Walks start only
+ * from train arrivals (snapshotted first) and never replace a train arrival
+ * from the same round, so a walk can never be chained onto another walk.
+ */
 function relaxFootpaths(footpaths, k, L, marked, updates, originSet) {
-  const reachedByTrain = [...marked].filter((s) => L.kind[k][s] === KIND_TRAIN);
-  for (const s of reachedByTrain) {
+  const reachedByTrain = new Map();
+  for (const s of marked) if (L.kind[k][s] === KIND_TRAIN) reachedByTrain.set(s, L.arr[k][s]);
+  for (const [s, arrived] of reachedByTrain) {
     for (const fp of footpaths.get(s) || []) {
-      if (originSet.has(fp.to)) continue;
-      const t = L.arr[k][s] + fp.minutes;
+      if (originSet.has(fp.to) || reachedByTrain.has(fp.to)) continue;
+      const t = arrived + fp.minutes;
       if (!improves(L, k, fp.to, t)) continue;
       L.arr[k][fp.to] = t;
       L.kind[k][fp.to] = KIND_WALK;

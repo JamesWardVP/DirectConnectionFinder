@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { decodeBundle } from '../public/js/core/bundle.js';
 import { Timetable, addDays, weekday } from '../public/js/core/timetable.js';
-import { runSearch } from '../public/js/core/search.js';
+import { runSearch, SearchError } from '../public/js/core/search.js';
 
 const dist = process.argv[2] || 'dist';
 const started = Date.now();
@@ -63,6 +63,36 @@ run('London Euston → Inverness, overnight', { from: station('EUS'), to: statio
   check(r.journeys.some((j) => j.arrive.dayOffset === 1), 'EUS-INV: expected an overnight journey arriving the next day');
   check(r.journeys.every((j) => j.duration < 16 * 60), 'EUS-INV: journey times should be under 16 hours');
 });
+
+// A search a user reported crashing ("reading 'arr'"): wide radii pulling in
+// stations joined by walking links.
+run('Sherburn-in-Elmet (10 mi) → Beaconsfield (6 mi), any date', {
+  from: station('SIE'), fromRadiusKm: 16.1, to: station('BCF'), toRadiusKm: 9.7,
+  mode: 'time', time: '10:00', windowMins: 720,
+}, (r) => check(r.journeys.length > 0, 'SIE-BCF: expected journeys'));
+
+// Random wide-radius searches must never crash.
+let seed = 20261012;
+const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+const crs = feed.stations.filter((s) => s.crs && served.includes(s.idx)).map((s) => s.crs);
+let crashes = 0;
+const t0 = Date.now();
+for (let i = 0; i < 25; i++) {
+  const a = crs[Math.floor(rand() * crs.length)], b = crs[Math.floor(rand() * crs.length)];
+  if (a === b) continue;
+  try {
+    runSearch(timetable, served, {
+      from: station(a), fromRadiusKm: 16, to: station(b), toRadiusKm: 16,
+      mode: 'date', date, time: '08:00', windowMins: 240, maxChanges: 3,
+    }, { today: bundle.searchable.start });
+  } catch (err) {
+    if (err instanceof SearchError) continue;
+    crashes++;
+    console.log(`  ✗ ${a} → ${b}: ${err.stack.split('\n').slice(0, 3).join(' | ')}`);
+  }
+}
+console.log(`\n25 random wide-radius searches in ${Date.now() - t0} ms, ${crashes} crashed`);
+check(crashes === 0, `${crashes} random searches crashed`);
 
 check(feed.trips.length > 20000, 'fewer trips than expected for a national timetable');
 // No train should take more than a day between consecutive calls.
