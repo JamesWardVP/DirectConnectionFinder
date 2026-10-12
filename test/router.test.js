@@ -6,7 +6,7 @@ import { runSearch } from '../public/js/core/search.js';
 import { priceJourney, estimateFare } from '../public/js/core/fares.js';
 import { nationalRailUrl } from '../public/js/core/links.js';
 import { encodeBundle, decodeBundle } from '../public/js/core/bundle.js';
-import { miniFeed } from './helpers.js';
+import { miniFeed, writeFeed } from './helpers.js';
 
 // Everything runs on a feed that has been through the website's bundle
 // format, exactly as the browser sees it.
@@ -158,4 +158,39 @@ test('National Rail link format', () => {
   assert.match(url, /origin=KGX/);
   assert.match(url, /leavingDate=141026/);
   assert.match(url, /leavingHour=09&leavingMin=05/);
+});
+
+test('walking links are never chained (crashed with "reading arr")', async () => {
+  // Train T1 reaches X then Y; X–Y and Y–Z are walking links; T2 leaves Z.
+  // Walking X→Y beats the train to Y, and used to be chained into Y→Z.
+  const coords = { A: [51.0, -1.0], X: [51.3, -1.0], Y: [51.31, -1.0], Z: [51.32, -1.0], D: [51.6, -1.0] };
+  const stops = [['stop_id', 'stop_code', 'stop_name', 'stop_lat', 'stop_lon']];
+  for (const [id, [lat, lon]] of Object.entries(coords)) stops.push([id, `Q${id}${id}`, `Stop ${id}`, lat, lon]);
+  const dir = writeFeed({
+    'agency.txt': [['agency_id', 'agency_name', 'agency_url', 'agency_timezone'], ['OP', 'Test Rail', 'https://example.test', 'Europe/London']],
+    'routes.txt': [['route_id', 'agency_id', 'route_short_name', 'route_type'], ['R', 'OP', 'R', '2']],
+    'stops.txt': stops,
+    'trips.txt': [['route_id', 'service_id', 'trip_id'], ['R', 'S', 'T1'], ['R', 'S', 'T2']],
+    'stop_times.txt': [
+      ['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence'],
+      ['T1', '08:00:00', '08:00:00', 'A', 1], ['T1', '08:30:00', '08:30:00', 'X', 2], ['T1', '09:00:00', '09:00:00', 'Y', 3],
+      ['T2', '08:50:00', '08:50:00', 'Z', 1], ['T2', '09:20:00', '09:20:00', 'D', 2],
+    ],
+    'calendar.txt': [
+      ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'],
+      ['S', 1, 1, 1, 1, 1, 1, 1, '20260101', '20261231'],
+    ],
+    'transfers.txt': [['from_stop_id', 'to_stop_id', 'transfer_type', 'min_transfer_time'], ['X', 'Y', 2, 300], ['Y', 'Z', 2, 300]],
+  });
+  const f = await loadGtfs(dir);
+  const tt = new Timetable(f);
+  const r = runSearch(tt, f.stations.map((s) => s.idx), {
+    from: { type: 'station', crs: 'QAA' }, to: { type: 'station', crs: 'QDD' },
+    mode: 'date', date: WED, time: '07:30', windowMins: 60, maxChanges: 2,
+  }, { today: WED });
+  for (const j of r.journeys) {
+    for (let i = 1; i < j.legs.length; i++) {
+      assert.ok(!(j.legs[i].type === 'transfer' && j.legs[i - 1].type === 'transfer'), 'two walks in a row');
+    }
+  }
 });
