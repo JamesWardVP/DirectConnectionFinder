@@ -5,3 +5,4 @@ data/gtfs/
 dist/
 timetable/
 .DS_Store
+broken-uids.txt

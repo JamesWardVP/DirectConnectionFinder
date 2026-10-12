@@ -68,6 +68,12 @@ check(feed.trips.length > 20000, 'fewer trips than expected for a national timet
 // No train should take more than a day between consecutive calls.
 const broken = feed.trips.filter((t) => t.arr[t.arr.length - 1] - t.dep[0] > 24 * 60);
 check(broken.length === 0, `${broken.length} trains run for more than 24 hours (e.g. ${broken.slice(0, 3).map((t) => t.id).join(', ')})`);
+for (const t of broken.slice(0, 3)) {
+  const hm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+  console.log(`\n${t.id}: ${[...t.stations].map((s, i) => `${feed.stations[s].crs} ${hm(t.arr[i])}/${hm(t.dep[i])}`).join(', ')}`);
+}
+// Train UIDs for the workflow to print the raw timetable records.
+fs.writeFileSync('broken-uids.txt', broken.slice(0, 3).map((t) => t.id.slice(0, 6)).join('\n'));
 }
 
 if (failures.length) {
