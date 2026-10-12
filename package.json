@@ -5,9 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-site.js",
-    "start": "node scripts/build-site.js && node scripts/serve.js",
-    "serve": "node scripts/serve.js",
-    "fetch:timetable": "bash scripts/fetch-timetable.sh",
     "build:demo": "node scripts/build-demo-gtfs.js",
     "test": "node --test test/*.test.js"
   },

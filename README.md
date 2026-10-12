@@ -45,29 +45,11 @@ The workflow is `.github/workflows/pages.yml`:
 
 If a download or build fails, the previous deployment stays live.
 
-## Running it locally
-
-```bash
-npm install
-npm start                 # builds dist/ with the demo timetable and serves http://localhost:3000
-npm test
-```
-
-Build from other sources with:
-
-```bash
-npm run build -- --source cif  --input toc-full.CIF.gz --days 28
-npm run build -- --source gtfs --input gb-rail-gtfs.zip
-npm run serve
-```
-
-Node 20 or newer is required. A full national CIF timetable needs a few GB of memory to import: `NODE_OPTIONS=--max-old-space-size=6144`.
-
 ## Timetable data
 
 ### Demo timetable (default)
 
-`data/demo-gtfs/` is a **synthetic** timetable so the site works straight away:
+`data/demo-gtfs/` is a **synthetic** timetable, published when no real source is configured:
 
 - about 49 routes and 216 stations
 - real station codes, operators and route patterns
