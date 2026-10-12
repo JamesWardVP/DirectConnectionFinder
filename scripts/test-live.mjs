@@ -52,6 +52,7 @@ async function desktop() {
   await page.fill('#to-input', 'Edinburgh');
   await page.waitForSelector('#to-options li[role=option]');
   await page.keyboard.press('Enter');
+  check(/Edinburgh Waverley/.test(await page.inputValue('#to-input')), '"Edinburgh" suggests Edinburgh Waverley first');
   await page.fill('#date', tomorrow);
   await page.fill('#time', '09:00');
   const t0 = Date.now();
