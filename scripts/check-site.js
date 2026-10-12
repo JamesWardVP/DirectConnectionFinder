@@ -8,6 +8,7 @@ import path from 'node:path';
 import { decodeBundle } from '../public/js/core/bundle.js';
 import { Timetable, addDays, weekday } from '../public/js/core/timetable.js';
 import { runSearch, SearchError } from '../public/js/core/search.js';
+import { directDestinations } from '../public/js/core/destinations.js';
 
 const dist = process.argv[2] || 'dist';
 const started = Date.now();
@@ -70,6 +71,17 @@ run('Sherburn-in-Elmet (10 mi) → Beaconsfield (6 mi), any date', {
   from: station('SIE'), fromRadiusKm: 16.1, to: station('BCF'), toRadiusKm: 9.7,
   mode: 'time', time: '10:00', windowMins: 720,
 }, (r) => check(r.journeys.length > 0, 'SIE-BCF: expected journeys'));
+
+// "Direct from a station": everywhere one train goes from London Kings Cross.
+{
+  const t1 = Date.now();
+  const r = directDestinations(timetable, served, { from: station('KGX'), mode: 'days', days: [2] }, { today: bundle.searchable.start });
+  const names = r.destinations.map((d) => d.crs);
+  console.log(`\nDirect from London Kings Cross on a Wednesday (${Date.now() - t1} ms): ${r.destinations.length} stations, top: `
+    + r.destinations.slice(0, 6).map((d) => `${d.name} ${d.trainsPerDay}/day (fastest ${d.fastest} min)`).join(', '));
+  check(['EDB', 'YRK', 'LDS', 'NCL'].every((c) => names.includes(c)), 'KGX direct destinations: expected Edinburgh, York, Leeds and Newcastle');
+  check(!names.includes('MAN'), 'KGX direct destinations: Manchester Piccadilly should need a change');
+}
 
 // Random wide-radius searches must never crash.
 let seed = 20261012;

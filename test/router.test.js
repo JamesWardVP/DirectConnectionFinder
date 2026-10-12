@@ -194,3 +194,25 @@ test('walking links are never chained (crashed with "reading arr")', async () =>
     }
   }
 });
+
+test('direct destinations list every station one train reaches', async () => {
+  const { directDestinations } = await import('../public/js/core/destinations.js');
+  const r = directDestinations(timetable, served, { from: st('B'), mode: 'date', date: WED, time: '08:00', windowMins: 180 }, { today: WED });
+  const byName = new Map(r.destinations.map((d) => [d.name, d]));
+  // T1 from B reaches C and D; the T3a+T3b block is one train, so E is direct.
+  assert.ok(byName.has('Station C') && byName.has('Station D') && byName.has('Station E'));
+  assert.equal(byName.get('Station E').fastest, 55);
+  assert.ok(!byName.has('Station B'), 'the starting station is not a destination');
+  // B is set-down only on T4, so T4 adds no departures from B.
+  assert.equal(byName.get('Station C').trains, 2);
+});
+
+test('direct destinations from several nearby stations skip each other', async () => {
+  const { directDestinations } = await import('../public/js/core/destinations.js');
+  const r = directDestinations(timetable, served, {
+    from: { type: 'point', lat: 51.1, lon: -1.0 }, fromRadiusKm: 15, mode: 'date', date: WED, time: '07:00', windowMins: 300,
+  }, { today: WED });
+  const names = r.destinations.map((d) => d.name);
+  assert.ok(!names.includes('Station A') && !names.includes('Station B'));
+  assert.ok(names.includes('Station D'));
+});

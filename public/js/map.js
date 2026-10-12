@@ -1,16 +1,17 @@
 /* global L */
-import { dashFor, rankColor, escapeHtml, changesLabel, KM_PER_MILE } from './util.js';
+import { dashFor, rankColor, escapeHtml, changesLabel, fmtDuration, opColor, KM_PER_MILE } from './util.js';
 
 const GB_CENTER = [54.3, -2.6];
 const LINE_WEIGHT = 6;
 
 export class RouteMap {
-  constructor(el, { onRouteHover, onRouteClick, onMapClick, onEmptyClick } = {}) {
+  constructor(el, { onRouteHover, onRouteClick, onMapClick, onEmptyClick, onStationAction, onDestinationClick } = {}) {
     this.map = L.map(el, { zoomSnap: 0.25, zoomControl: true, attributionControl: true, minZoom: 5, maxZoom: 15 })
       .setView(GB_CENTER, 6);
     this.map.attributionControl.setPrefix(false);
     this.map.attributionControl.addAttribution('Coastline: Natural Earth');
-    this.callbacks = { onRouteHover, onRouteClick, onMapClick, onEmptyClick };
+    this.callbacks = { onRouteHover, onRouteClick, onMapClick, onEmptyClick, onStationAction, onDestinationClick };
+    this.exploreLayer = L.layerGroup().addTo(this.map);
     this.landLayer = L.layerGroup().addTo(this.map);
     this.areaLayer = L.layerGroup().addTo(this.map);
     this.routeLayer = L.layerGroup().addTo(this.map);
@@ -25,7 +26,10 @@ export class RouteMap {
     // the pointer is not over a route, so it can never be left behind.
     this.tip = L.tooltip({ className: 'route-tip', direction: 'top', offset: [0, -10], interactive: false });
     this.hovered = null;
-    const isRoute = (e) => e.originalEvent?.target?.classList?.contains('route-hit');
+    const isRoute = (e) => {
+      const cl = e.originalEvent?.target?.classList;
+      return cl?.contains('route-hit') || cl?.contains('station-hit');
+    };
     this.map.on('mousemove', (e) => { if (!isRoute(e)) this.clearHover(); });
     this.map.getContainer().addEventListener('mouseleave', () => this.clearHover());
     this.map.on('click', (e) => {
@@ -87,7 +91,7 @@ export class RouteMap {
         }).addTo(this.areaLayer);
       }
       for (const s of side.stations || []) {
-        L.circleMarker([s.lat, s.lon], {
+        this.stationMarker(s, {
           radius: 4.5, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1,
         }).bindTooltip(`${escapeHtml(s.name)}${s.distanceKm != null ? ` · ${(s.distanceKm / KM_PER_MILE).toFixed(1)} mi` : ''}`, { direction: 'top', offset: [0, -4] })
           .addTo(this.areaLayer);
@@ -115,6 +119,7 @@ export class RouteMap {
    * stations: idx -> {name, lat, lon}
    */
   setRoutes(routes, stations, endpoints) {
+    this.clearExplore();
     this.routeLayer.clearLayers();
     this.stationLayer.clearLayers();
     this.labelLayer.clearLayers();
@@ -173,10 +178,10 @@ export class RouteMap {
     this.labelCandidates = [];
     const stations = this.stations;
     const selected = this.selected ? this.routeShapes.get(this.selected)?.route : null;
-    const routes = selected ? [selected] : this.routes.slice(0, 40);
+    const routes = selected ? [selected] : (this.routes || []).slice(0, 40);
     const endpointSet = selected
       ? new Set([selected.segments[0].stations[0], selected.segments.at(-1).stations.at(-1)])
-      : new Set(this.endpoints);
+      : new Set(this.endpoints || []);
     const changeSet = new Set();
     routes.forEach((r) => r.changeStations.forEach((s) => changeSet.add(s)));
 
@@ -186,7 +191,7 @@ export class RouteMap {
         for (const idx of seg.stations.slice(1, -1)) {
           const s = stations.get(idx);
           if (!s || changeSet.has(idx) || endpointSet.has(idx)) continue;
-          L.circleMarker([s.lat, s.lon], { radius: 4, color: rankColor(seg.color, 0), weight: 2.5, fillColor: '#fff', fillOpacity: 1, interactive: false })
+          this.stationMarker(s, { radius: 4, color: rankColor(seg.color, 0), weight: 2.5, fillColor: '#fff', fillOpacity: 1 })
             .addTo(this.stationLayer);
           this.label(s, 'minor', 2);
         }
@@ -195,14 +200,14 @@ export class RouteMap {
     for (const idx of changeSet) {
       const s = stations.get(idx);
       if (!s || endpointSet.has(idx)) continue;
-      L.circleMarker([s.lat, s.lon], { radius: 7, color: '#111', weight: 3, fillColor: '#fff', fillOpacity: 1, interactive: false })
+      this.stationMarker(s, { radius: 7, color: '#111', weight: 3, fillColor: '#fff', fillOpacity: 1 })
         .addTo(this.stationLayer);
       this.label(s, selected ? 'change' : 'minor', 1);
     }
     for (const idx of endpointSet) {
       const s = stations.get(idx);
       if (!s) continue;
-      L.circleMarker([s.lat, s.lon], { radius: 9, color: '#111', weight: 4, fillColor: '#fff', fillOpacity: 1, interactive: false })
+      this.stationMarker(s, { radius: 9, color: '#111', weight: 4, fillColor: '#fff', fillOpacity: 1 })
         .addTo(this.stationLayer);
       this.label(s, 'endpoint', 0);
     }
@@ -243,6 +248,111 @@ export class RouteMap {
   fitRoutes() {
     const b = this.routeLayer.getLayers().length ? L.featureGroup(this.routeLayer.getLayers()).getBounds() : null;
     if (b && b.isValid()) this.map.fitBounds(b, { padding: [50, 50], maxZoom: 11, animate: false });
+  }
+
+  /**
+   * A clickable station circle. Clicking opens a popup offering direct
+   * trains from the station, or using it as the start or destination.
+   */
+  stationMarker(s, style) {
+    const m = L.circleMarker([s.lat, s.lon], { ...style, className: 'station-hit' });
+    m.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      this.openStationPopup(s);
+    });
+    return m;
+  }
+
+  openStationPopup(s) {
+    if (!s.crs && s.idx == null) return;
+    const el = document.createElement('div');
+    el.className = 'st-pop';
+    el.innerHTML = `<strong>${escapeHtml(s.name)}</strong>
+      <button type="button" data-a="explore" class="primary">Direct trains from here</button>
+      <div class="st-pop-row"><button type="button" data-a="from">Start here</button><button type="button" data-a="to">End here</button></div>`;
+    el.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (!a) return;
+      this.map.closePopup();
+      this.callbacks.onStationAction?.(a, s);
+    });
+    L.popup({ className: 'station-popup', offset: [0, -6], autoPanPadding: [20, 20] })
+      .setLatLng([s.lat, s.lon]).setContent(el).openOn(this.map);
+  }
+
+  /** Clear journey routes (used when switching to the destinations view). */
+  clearRoutes() {
+    this.clearHover();
+    this.routeLayer.clearLayers();
+    this.stationLayer.clearLayers();
+    this.labelLayer.clearLayers();
+    this.routeShapes.clear();
+    this.routes = [];
+    this.labelCandidates = [];
+    this.selected = null;
+  }
+
+  /**
+   * Every station reachable on one train: the path each train takes, and a
+   * station circle at each destination, bigger and more saturated the more
+   * trains go there.
+   */
+  setExplore(data) {
+    this.clearExplore();
+    this.clearRoutes();
+    const dests = data.destinations;
+    const maxTrains = Math.max(1, ...dests.map((d) => d.trainsPerDay));
+    const byIdx = new Map();
+    const rank = new Map([...dests].sort((a, b) => b.trainsPerDay - a.trainsPerDay).map((d, i) => [d.idx, i]));
+    const n = dests.length;
+    // Least-served first so busy lines are drawn on top.
+    for (const d of [...dests].sort((a, b) => a.trainsPerDay - b.trainsPerDay)) {
+      const t = n > 1 ? rank.get(d.idx) / (n - 1) : 0;
+      const color = rankColor(opColor(d.operators[0]), t);
+      const coords = d.path.map((p) => [p.lat, p.lon]);
+      const line = L.polyline(coords, { color, weight: 4, opacity: 0.9, lineJoin: 'round', lineCap: 'round', interactive: false });
+      const r = 4 + 5 * Math.sqrt(d.trainsPerDay / maxTrains);
+      const dot = L.circleMarker([d.lat, d.lon], {
+        radius: r, color: '#111', weight: 2.5, fillColor: '#fff', fillOpacity: 1, className: 'station-hit',
+      }).bindTooltip(`<strong>${escapeHtml(d.name)}</strong><br>${d.trains === d.trainsPerDay ? d.trains : d.trainsPerDay} trains · fastest ${fmtDuration(d.fastest)}`, { direction: 'top', offset: [0, -r], className: 'route-tip' });
+      dot.on('click', (e) => { L.DomEvent.stopPropagation(e); this.callbacks.onDestinationClick?.(d.idx); });
+      byIdx.set(d.idx, { d, line, dot, color });
+      line.addTo(this.exploreLayer);
+    }
+    // Dots above every line.
+    for (const d of [...dests].sort((a, b) => a.trainsPerDay - b.trainsPerDay)) byIdx.get(d.idx).dot.addTo(this.exploreLayer);
+    for (const s of data.from.stations) {
+      this.stationMarker(s, { radius: 10, color: '#111', weight: 4, fillColor: '#fff', fillOpacity: 1 }).addTo(this.exploreLayer);
+    }
+    this.explore = { data, byIdx, selected: null };
+    this.labelCandidates = [
+      ...data.from.stations.map((s) => ({ s, cls: 'endpoint', priority: 0 })),
+      ...[...dests].sort((a, b) => b.trainsPerDay - a.trainsPerDay).map((d, i) => ({ s: d, cls: 'minor', priority: 1 + i })),
+    ];
+    this.placeLabels();
+    const b = L.latLngBounds([...dests.map((d) => [d.lat, d.lon]), ...data.from.stations.map((s) => [s.lat, s.lon])]);
+    if (b.isValid()) this.map.fitBounds(b, { padding: [40, 40], maxZoom: 11, animate: false });
+  }
+
+  /** Emphasise one destination's line; null shows them all again. */
+  selectDestination(idx, { padRight = 0, padBottom = 0 } = {}) {
+    if (!this.explore) return;
+    this.explore.selected = idx;
+    for (const [i, { line, dot }] of this.explore.byIdx) {
+      const on = idx == null || i === idx;
+      line.setStyle({ opacity: on ? 0.9 : 0.12, weight: i === idx ? 7 : 4 });
+      dot.setStyle({ opacity: on ? 1 : 0.25, fillOpacity: on ? 1 : 0.25 });
+    }
+    if (idx == null) return;
+    const { d, line } = this.explore.byIdx.get(idx);
+    line.bringToFront();
+    const b = L.latLngBounds([...d.path.map((p) => [p.lat, p.lon])]);
+    this.map.fitBounds(b, { paddingTopLeft: [40, 40], paddingBottomRight: [40 + padRight, 40 + padBottom], maxZoom: 11, animate: false });
+  }
+
+  clearExplore() {
+    this.exploreLayer.clearLayers();
+    this.explore = null;
   }
 
   setHover(route, latlng) {
@@ -290,7 +400,7 @@ export class RouteMap {
     }
     if (routeId == null) {
       // Put the routes back in rank order (best on top).
-      for (const r of [...this.routes].reverse()) this.routeShapes.get(r.id)?.group.bringToFront();
+      for (const r of [...(this.routes || [])].reverse()) this.routeShapes.get(r.id)?.group.bringToFront();
     }
     this.drawStations();
     if (routeId != null && fit) {
