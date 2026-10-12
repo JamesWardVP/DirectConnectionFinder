@@ -52,6 +52,15 @@ async function desktop() {
   await page.fill('#to-input', 'Edinburgh');
   await page.waitForSelector('#to-options li[role=option]');
   await page.keyboard.press('Enter');
+  // Radius slider: the + and − buttons move it and the label says what it covers.
+  await page.click('[data-for="to-radius"][data-step="1"]');
+  await page.click('[data-for="to-radius"][data-step="1"]');
+  await page.waitForTimeout(400);
+  const radiusText = await page.textContent('#to-radius-out');
+  console.log(`  radius label: ${radiusText}`);
+  check(await page.inputValue('#to-radius') === '2' && /Within 2 miles/.test(radiusText), 'radius + button and label work');
+  await page.click('[data-for="to-radius"][data-step="-1"]');
+  await page.click('[data-for="to-radius"][data-step="-1"]');
   check(/Edinburgh Waverley/.test(await page.inputValue('#to-input')), '"Edinburgh" suggests Edinburgh Waverley first');
   await page.fill('#date', tomorrow);
   await page.fill('#time', '09:00');
@@ -67,6 +76,34 @@ async function desktop() {
   const paths = await page.locator('.leaflet-overlay-pane path').count();
   check(paths > 0, `route lines are drawn on the map (${paths} shapes)`);
   await page.screenshot({ path: 'screenshots/1-results.png' });
+
+  // Route lines: the tooltip follows the pointer and goes away when it leaves.
+  const pt = await page.evaluate(() => {
+    const p = [...document.querySelectorAll('path.route-hit')].at(-1);
+    const m = p.getPointAtLength(p.getTotalLength() * 0.45), c = p.getScreenCTM();
+    return { x: m.x * c.a + c.e, y: m.y * c.d + c.f };
+  });
+  await page.mouse.move(pt.x, pt.y, { steps: 4 });
+  await page.waitForTimeout(300);
+  const tipShown = await page.locator('.route-tip').count();
+  await page.mouse.move(pt.x + 300, pt.y + 120);
+  await page.waitForTimeout(500);
+  const tipLeft = await page.locator('.route-tip').count();
+  check(tipShown === 1 && tipLeft === 0, 'route tooltip shows on hover and disappears afterwards');
+
+  // Clicking a route isolates it and opens the route panel.
+  const routesBefore = await page.locator('path.route-hit').count();
+  await page.mouse.move(pt.x, pt.y);
+  await page.mouse.click(pt.x, pt.y);
+  await page.waitForTimeout(600);
+  const routeHits = await page.locator('path.route-hit').count();
+  const panelText = (await page.textContent('#route-panel'))?.replace(/\s+/g, ' ').trim() || '';
+  console.log(`  route panel: ${panelText.slice(0, 160)}`);
+  check(await page.isVisible('#route-panel') && routeHits < routesBefore, 'clicking a route isolates it and shows its train times');
+  await page.screenshot({ path: 'screenshots/1b-route-selected.png' });
+  await page.click('#route-panel [data-act="close"]');
+  await page.waitForTimeout(300);
+  check(!(await page.isVisible('#route-panel')) && (await page.locator('path.route-hit').count()) === routesBefore, '"All routes" shows every route again');
 
   // Open the first journey: line diagram, fare and buy links.
   await page.click('.journey .card');

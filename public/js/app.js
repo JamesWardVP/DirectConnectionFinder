@@ -1,6 +1,8 @@
 import { RouteMap } from './map.js';
 import { ResultsView } from './results.js';
-import { KM_PER_MILE, debounce, escapeHtml as esc, fmtDate } from './util.js';
+import {
+  KM_PER_MILE, debounce, escapeHtml as esc, fmtDate, fmtDuration, money, changesLabel, swatchSvg, rankColor, opColor,
+} from './util.js';
 import { Engine } from './engine.js';
 import { geocode } from './geocode.js';
 
@@ -20,11 +22,12 @@ const errorEl = $('#form-error');
 
 // ---------------------------------------------------------------- map + list
 const routeMap = new RouteMap($('#map'), {
-  onRouteHover: (id, on) => { results.markRouteHover(id, on); routeMap.highlight(id, on); },
+  onRouteHover: (id, on) => results.markRouteHover(id, on),
   onRouteClick: (id) => {
     const j = results.journeys?.find((x) => x.routeId === id);
-    if (j) results.select(j.id, { scroll: true });
+    if (j) selectRoute(id, j.id, { scrollList: true });
   },
+  onEmptyClick: () => { if (!state.picking && routeMap.selected) clearRoute(); },
   onMapClick: (latlng) => {
     if (!state.picking) return;
     const side = state.picking;
@@ -36,7 +39,79 @@ const routeMap = new RouteMap($('#map'), {
 
 const results = new ResultsView($('#results'), {
   onHover: (routeId, on) => routeMap.highlight(routeId, on),
-  onSelect: (j) => routeMap.select(j ? j.routeId : null),
+  onSelect: (j) => (j ? selectRoute(j.routeId, j.id) : clearRoute()),
+});
+
+// ---------------------------------------------------------------- selected route
+const panel = $('#route-panel');
+const wideScreen = () => window.matchMedia('(min-width: 861px)').matches;
+
+/** Isolate a route on the map and show its train times in a panel. */
+function selectRoute(routeId, journeyId, { scrollList = false } = {}) {
+  const route = state.routeById?.get(routeId);
+  if (!route) return;
+  results.select(journeyId, { scroll: scrollList, notify: false });
+  renderPanel(route, journeyId);
+  if (routeMap.selected !== routeId) {
+    // Fit the route into the part of the map the panel does not cover.
+    const pad = wideScreen() ? { padRight: panel.offsetWidth + 12 } : { padBottom: panel.offsetHeight + 8 };
+    routeMap.select(routeId, pad);
+  }
+}
+
+function clearRoute() {
+  routeMap.select(null);
+  results.select(null, { notify: false });
+  panel.hidden = true;
+  panel.innerHTML = '';
+  panel.parentElement.classList.remove('has-panel');
+}
+
+function renderPanel(route, journeyId) {
+  const journeys = results.journeys.filter((j) => j.routeId === route.id);
+  const first = journeys[0];
+  const trainLegs = first.legs.filter((l) => l.type === 'train');
+  const via = trainLegs.slice(0, -1).map((l) => l.to.name);
+  const t = route.total > 1 ? route.order / (route.total - 1) : 0;
+  const ops = first.operators.map((o) => `<span class="op" style="background:${opColor(o)}">${esc(o.name)}</span>`).join('');
+  panel.innerHTML = `
+    <div class="rp-head">
+      <button type="button" class="rp-close" data-act="close" aria-label="Show all routes">✕</button>
+      <div class="rp-kind">${swatchSvg(rankColor(opColor(trainLegs[0].operator), t), route.changes)}${changesLabel(route.changes)}</div>
+      <h2>${esc(first.origin.name)} → ${esc(first.destination.name)}</h2>
+      ${via.length ? `<p class="rp-via">Change at ${via.map(esc).join(', ')}</p>` : ''}
+      <div class="rp-ops">${ops}</div>
+    </div>
+    <ul class="rp-list" aria-label="Train times on this route">
+      ${journeys.map((j) => `
+        <li><button type="button" data-id="${j.id}" aria-current="${j.id === journeyId}">
+          <span class="rp-time">${esc(j.depart.time)} → ${esc(j.arrive.time)}${j.arrive.dayOffset > j.depart.dayOffset ? ' +1' : ''}</span>
+          <span class="rp-price">${money(j.fare.total)}</span>
+          <span class="rp-sub">${fmtDuration(j.duration)}${j.runsOn ? ` · ${esc(j.runsOn)}` : ''}${j.fare.split ? ' · split ticket' : ''}${j.fare.source === 'estimate' ? ' · price estimated' : ''}</span>
+        </button></li>`).join('')}
+    </ul>
+    <div class="rp-foot">
+      <button type="button" class="primary" data-act="details">Journey details &amp; tickets</button>
+      <button type="button" data-act="close">All routes</button>
+    </div>`;
+  panel.hidden = false;
+  panel.parentElement.classList.add('has-panel');
+  panel.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+panel.addEventListener('click', (e) => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  const pick = e.target.closest('[data-id]')?.dataset.id;
+  if (act === 'close') clearRoute();
+  else if (act === 'details') {
+    const card = document.querySelector(`.journey[data-id="${results.selectedId}"]`);
+    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (pick) {
+    selectRoute(routeMap.selected, pick, { scrollList: true });
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && routeMap.selected && !e.target.closest('input, select')) clearRoute();
 });
 results.showEmpty();
 
@@ -87,21 +162,32 @@ function setLocation(side, loc, { preview = true } = {}) {
 }
 
 function setRadius(side, miles) {
-  $(`#${side}-radius`).value = miles;
+  const input = $(`#${side}-radius`);
+  input.value = Math.max(+input.min, Math.min(+input.max, miles));
   updateRadiusLabel(side);
   refreshAreas(false);
 }
 
 function updateRadiusLabel(side) {
-  const miles = +$(`#${side}-radius`).value;
+  const input = $(`#${side}-radius`);
+  const miles = +input.value;
+  input.style.setProperty('--pct', `${(miles / +input.max) * 100}%`);
   const loc = state[side];
   const out = $(`#${side}-radius-out`);
-  if (miles === 0) out.textContent = loc?.type === 'point' ? 'Nearest station' : 'This station only';
+  let text;
+  if (miles === 0) text = loc?.type === 'point' ? 'Nearest station only' : 'This station only';
   else {
     const n = state.nearby[side]?.length;
-    out.textContent = `Within ${miles} mi${n ? ` · ${n} station${n > 1 ? 's' : ''}` : ''}`;
+    text = `Within ${miles} mile${miles > 1 ? 's' : ''}${n ? ` · ${n} station${n > 1 ? 's' : ''}` : ''}`;
   }
+  out.textContent = text;
+  input.setAttribute('aria-valuetext', text);
 }
+
+$$('.radius .step').forEach((btn) => btn.addEventListener('click', () => {
+  const side = btn.dataset.for.replace('-radius', '');
+  setRadius(side, +$(`#${btn.dataset.for}`).value + Number(btn.dataset.step));
+}));
 
 const refreshAreas = debounce(async (fit) => {
   const sides = [];
@@ -132,6 +218,7 @@ $('#swap').addEventListener('click', () => {
   const f = state.from, t = state.to;
   const fr = $('#from-radius').value, tr = $('#to-radius').value;
   $('#from-radius').value = tr; $('#to-radius').value = fr;
+  updateRadiusLabel('from'); updateRadiusLabel('to');
   setLocation('from', t, { preview: false });
   setLocation('to', f, { preview: false });
   refreshAreas(true);
@@ -325,6 +412,9 @@ function renderData({ fit }) {
       };
     });
   const routeById = new Map(routes.map((r) => [r.id, r]));
+  state.routeById = routeById;
+  panel.hidden = true;
+  panel.parentElement.classList.remove('has-panel');
 
   const stations = new Map();
   const endpoints = new Set();
