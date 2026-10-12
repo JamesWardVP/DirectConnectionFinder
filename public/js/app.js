@@ -1,6 +1,8 @@
 import { RouteMap } from './map.js';
 import { ResultsView } from './results.js';
-import { KM_PER_MILE, debounce, escapeHtml as esc } from './util.js';
+import { KM_PER_MILE, debounce, escapeHtml as esc, fmtDate } from './util.js';
+import { Engine } from './engine.js';
+import { geocode } from './geocode.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -45,14 +47,23 @@ const today = new Date();
 const isoToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 $('#date').value = isoToday;
 
-fetch('/api/meta').then((r) => r.json()).then((meta) => {
+const engine = new Engine('data/timetable.json');
+const statusEl = $('#data-status');
+statusEl.textContent = 'Loading timetable…';
+engine.ready.then((meta) => {
   if (meta.demo) $('#demo-banner').hidden = false;
   if (meta.dateRange) {
     $('#date').min = meta.dateRange.start;
     $('#date').max = meta.dateRange.end;
     if (isoToday < meta.dateRange.start || isoToday > meta.dateRange.end) $('#date').value = meta.dateRange.start;
   }
-}).catch(() => {});
+  const updated = meta.generated ? fmtDate(meta.generated.slice(0, 10), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  statusEl.textContent = `${meta.source?.name || 'Timetable'}${updated ? ` · updated ${updated}` : ''}`
+    + ` · covers ${fmtDate(meta.dateRange.start)} to ${fmtDate(meta.dateRange.end)}`;
+}).catch((err) => {
+  statusEl.textContent = err.message;
+  statusEl.classList.add('error');
+});
 
 // ---------------------------------------------------------------- mode panels
 function syncMode() {
@@ -101,7 +112,7 @@ const refreshAreas = debounce(async (fit) => {
     let stations = [];
     if (radiusKm > 0) {
       try {
-        stations = await (await fetch(`/api/nearby?lat=${loc.lat}&lon=${loc.lon}&radiusKm=${radiusKm}`)).json();
+        stations = await engine.nearby(loc.lat, loc.lon, radiusKm);
       } catch { stations = []; }
     } else if (loc.type === 'station') stations = [loc];
     state.nearby[side] = radiusKm > 0 ? stations : [];
@@ -194,16 +205,14 @@ function setupCombo(side) {
     const my = ++seq;
     if (q.length < 2) { close(); return; }
     let stations = [];
-    try { stations = await (await fetch(`/api/stations?q=${encodeURIComponent(q)}`)).json(); } catch { /* ignore */ }
+    try { stations = await engine.findStations(q); } catch { /* ignore */ }
     if (my !== seq) return;
     renderList(stations.slice(0, 8), [], null);
     if (q.length < 3) return;
     let places = [], err = null;
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-      const body = await res.json();
-      if (res.ok) places = body; else err = body.error;
-    } catch { err = 'Place search unavailable'; }
+      places = await geocode(q);
+    } catch { err = 'Place search is unavailable right now'; }
     if (my !== seq) return;
     renderList(stations.slice(0, 8), places.slice(0, 5), err);
   }, 220);
@@ -278,9 +287,7 @@ async function runSearch(body) {
   btn.disabled = true;
   results.showLoading();
   try {
-    const res = await fetch('/api/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Search failed');
+    const data = await engine.search(body, isoToday);
     state.data = data;
     renderData({ fit: true });
     $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });

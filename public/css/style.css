@@ -184,6 +184,8 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
 .go:hover { background: #00137f; }
 .go[disabled] { opacity: .6; cursor: progress; }
 .error { margin: 10px 0 0; color: var(--red); font-size: 13.5px; }
+.data-status { margin: 10px 0 0; font-size: 12px; color: var(--ink-3); text-align: center; }
+.data-status.error { color: var(--red); }
 
 /* ---------- Results ---------- */
 .results { padding: 4px 0 24px; }
@@ -258,6 +260,7 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
   background: #fff; border: 4px solid var(--ink); box-sizing: border-box;
 }
 .leg-meta { margin: 2px 0 8px 62px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.leg-meta .leg-note { flex-basis: 100%; color: #8a5a00; }
 .leg-meta .toggle-calls { border: 0; background: none; color: var(--blue); cursor: pointer; padding: 0; font-size: 12.5px; text-decoration: underline; }
 .transfer {
   display: grid; grid-template-columns: 52px 1fr; gap: 10px; margin: 2px 0 6px;

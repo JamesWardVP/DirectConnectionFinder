@@ -1,0 +1,73 @@
+# Builds the site with a fresh timetable and publishes it to GitHub Pages.
+#
+# Runs every night (after Network Rail publishes the day's timetable), on
+# every push to main, and on demand from the Actions tab.
+#
+# Timetable source (set in Settings > Secrets and variables > Actions):
+#   secrets NROD_USERNAME + NROD_PASSWORD  Network Rail open data account
+#   variable TIMETABLE_GTFS_URL            or a URL of a GTFS zip
+#   variable TIMETABLE_DAYS                days ahead to include (default 28)
+# With neither set, the demo timetable is published.
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Download timetable
+        id: timetable
+        env:
+          NROD_USERNAME: ${{ secrets.NROD_USERNAME }}
+          NROD_PASSWORD: ${{ secrets.NROD_PASSWORD }}
+          TIMETABLE_GTFS_URL: ${{ vars.TIMETABLE_GTFS_URL }}
+        run: bash scripts/fetch-timetable.sh
+
+      - name: Build site
+        env:
+          DCF_SOURCE: ${{ steps.timetable.outputs.source }}
+          DCF_INPUT: ${{ steps.timetable.outputs.input }}
+          DCF_DAYS: ${{ vars.TIMETABLE_DAYS || '28' }}
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

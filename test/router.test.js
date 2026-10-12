@@ -1,13 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadGtfs, parseCsvLine, parseTime } from '../server/gtfs.js';
-import { Timetable } from '../server/timetable.js';
-import { runSearch } from '../server/search.js';
-import { priceJourney, estimateFare } from '../server/fares.js';
-import { nationalRailUrl } from '../server/links.js';
+import { loadGtfs, parseCsvLine, parseTime } from '../lib/gtfs.js';
+import { Timetable } from '../public/js/core/timetable.js';
+import { runSearch } from '../public/js/core/search.js';
+import { priceJourney, estimateFare } from '../public/js/core/fares.js';
+import { nationalRailUrl } from '../public/js/core/links.js';
+import { encodeBundle, decodeBundle } from '../public/js/core/bundle.js';
 import { miniFeed } from './helpers.js';
 
-const feed = await loadGtfs(miniFeed());
+// Everything runs on a feed that has been through the website's bundle
+// format, exactly as the browser sees it.
+const raw = await loadGtfs(miniFeed());
+const feed = decodeBundle(JSON.parse(JSON.stringify(encodeBundle(raw, { start: '2026-10-12', days: 14 }))));
 const timetable = new Timetable(feed);
 const served = feed.stations.map((s) => s.idx);
 const WED = '2026-10-14';
