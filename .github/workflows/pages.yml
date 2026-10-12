@@ -58,6 +58,9 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: npm run build
 
+      - name: Check timetable with real searches
+        run: node scripts/check-site.js dist
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
