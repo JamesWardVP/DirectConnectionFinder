@@ -1,4 +1,6 @@
-import { escapeHtml as esc, nearestNote, fmtDuration, fmtDate, fmtMiles, opColor } from './util.js';
+import {
+  escapeHtml as esc, nearestNote, fmtDuration, fmtDate, fmtMiles, opColor, swatchSvg, changesLabel,
+} from './util.js';
 
 const PAGE = 80;
 const SORTS = {
@@ -8,7 +10,7 @@ const SORTS = {
   distance: (a, b) => b.distanceKm - a.distanceKm,
 };
 
-/** List of every station reachable on one train ("Direct from a station"). */
+/** Every station reachable from a station, directly or with changes ("From a station"). */
 export class ExploreView {
   constructor(el, { onSelect, onPlan, onExplore }) {
     this.el = el;
@@ -38,8 +40,10 @@ export class ExploreView {
     if (data.from.fellBackToNearest) notes.push(nearestNote(data.from, esc(data.from.label)));
     else if (data.from.stations.length > 1) notes.push(`Starting from ${data.from.stations.map((s) => esc(s.name)).join(', ')}.`);
     if (q.datesWithService.length < q.dates.length) notes.push(`No timetable data for ${q.dates.length - q.datesWithService.length} of the dates searched.`);
+    if (q.shortened) notes.push(`With changes, only the first ${q.dates.length} of the ${q.shortened} days are searched.`);
+    const how = q.maxChanges ? `from <strong>${esc(origin)}</strong> with up to ${q.maxChanges} change${q.maxChanges > 1 ? 's' : ''}` : `direct from <strong>${esc(origin)}</strong>`;
     this.el.innerHTML = `
-      <div class="summary"><strong>${data.destinations.length}</strong> station${data.destinations.length === 1 ? '' : 's'} direct from <strong>${esc(origin)}</strong> · ${esc(when)}</div>
+      <div class="summary"><strong>${data.destinations.length}</strong> station${data.destinations.length === 1 ? '' : 's'} ${how} · ${esc(when)}</div>
       ${notes.length ? `<ul class="notes">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : ''}
       <div class="ex-tools">
         <input type="search" class="ex-filter" placeholder="Filter stations" aria-label="Filter destinations">
@@ -52,7 +56,6 @@ export class ExploreView {
           </select>
         </label>
       </div>
-      <h2 class="group-head"><svg viewBox="0 0 46 12" aria-hidden="true"><line x1="4" y1="6" x2="42" y2="6" stroke="#111" stroke-width="5"/></svg>Direct trains<span class="count">${data.destinations.length}</span></h2>
       <div class="ex-list"></div>`;
     this.drawList();
   }
@@ -61,12 +64,14 @@ export class ExploreView {
     const f = this.filter.trim().toLowerCase();
     return this.data.destinations
       .filter((d) => !f || d.name.toLowerCase().includes(f) || (d.crs || '').toLowerCase() === f)
-      .sort(SORTS[this.sort] || SORTS.trains);
+      // Fewest changes first, like journey results; then the chosen order.
+      .sort((a, b) => a.changes - b.changes || (SORTS[this.sort] || SORTS.trains)(a, b));
   }
 
   perDay(d) {
     const mode = this.data.query.mode;
-    if (mode === 'date') return `${d.trains} train${d.trains === 1 ? '' : 's'}`;
+    const what = this.data.query.maxChanges ? 'departure' : 'train';
+    if (mode === 'date') return `${d.trains} ${what}${d.trains === 1 ? '' : 's'}`;
     return `${d.trainsPerDay} a day`;
   }
 
@@ -75,10 +80,20 @@ export class ExploreView {
     if (!list) return;
     const items = this.visible();
     if (!items.length) {
-      list.innerHTML = '<div class="empty"><p>No direct trains found. Try a longer time window, a wider radius or "Days of week".</p></div>';
+      list.innerHTML = '<div class="empty"><p>No trains found. Try a longer time window, a wider radius, allowing changes or "Days of week".</p></div>';
       return;
     }
-    list.innerHTML = items.slice(0, this.limit).map((d) => this.rowHtml(d)).join('')
+    const counts = new Map();
+    for (const d of items) counts.set(d.changes, (counts.get(d.changes) || 0) + 1);
+    let group = -1;
+    list.innerHTML = items.slice(0, this.limit).map((d) => {
+      let head = '';
+      if (d.changes !== group) {
+        group = d.changes;
+        head = `<h2 class="group-head">${swatchSvg('#111', d.changes)}${d.changes ? changesLabel(d.changes) : 'Direct trains'}<span class="count">${counts.get(d.changes)}</span></h2>`;
+      }
+      return head + this.rowHtml(d);
+    }).join('')
       + (items.length > this.limit ? `<button type="button" class="more-results" data-act="more">Show ${Math.min(PAGE, items.length - this.limit)} more</button>` : '');
   }
 
@@ -91,7 +106,7 @@ export class ExploreView {
           <span class="ex-dot" aria-hidden="true"></span>
           <span class="ex-name">${esc(d.name)}${d.crs ? ` <small>${esc(d.crs)}</small>` : ''}</span>
           <span class="price">${esc(this.perDay(d))}<small>fastest ${fmtDuration(d.fastest)}</small></span>
-          <span class="where">First ${esc(d.first)} · last ${esc(d.last)} · ${fmtMiles(d.distanceKm * 1)} away</span>
+          <span class="where">${d.via.length ? `Fastest via ${d.via.map(esc).join(', ')} · ` : ''}First ${esc(d.first)} · last ${esc(d.last)} · ${fmtMiles(d.distanceKm * 1)} away</span>
           <span class="badges">${ops}</span>
         </button>
         ${sel ? this.detailHtml(d) : ''}
@@ -99,11 +114,12 @@ export class ExploreView {
   }
 
   detailHtml(d) {
+    if (!d.times) return '<div class="detail"><p class="fare-note">Loading departures…</p></div>';
     const multi = this.data.from.stations.length > 1;
     const rows = d.times.map((t) => `
       <li><span class="t">${esc(t.depart)} → ${esc(t.arrive)}${t.nextDay ? ' +1' : ''}</span>
-        <span class="d">${fmtDuration(t.duration)}</span>
-        <span class="o"><span class="op" style="background:${opColor(t.operator)}">${esc(t.operator.name)}</span>${multi ? ` from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span></li>`).join('');
+        <span class="d">${fmtDuration(t.duration)}${t.changes ? ` · ${changesLabel(t.changes)}` : ''}</span>
+        <span class="o">${t.via.length ? `via ${t.via.map(esc).join(', ')} · ` : ''}<span class="op" style="background:${opColor(t.operator)}">${esc(t.operator.name)}</span>${multi ? ` from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span></li>`).join('');
     return `
       <div class="detail">
         <h3>Departures</h3>
@@ -111,7 +127,7 @@ export class ExploreView {
         ${d.moreTimes ? `<p class="fare-note">and ${d.moreTimes} more.</p>` : ''}
         <div class="links ex-actions">
           <button type="button" class="primary" data-act="plan">Plan this journey (fares &amp; tickets)</button>
-          <button type="button" data-act="explore">Direct trains from ${esc(d.name)}</button>
+          <button type="button" data-act="explore">Trains from ${esc(d.name)}</button>
         </div>
       </div>`;
   }

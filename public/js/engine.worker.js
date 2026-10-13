@@ -6,6 +6,9 @@ import { directDestinations } from './core/destinations.js';
 
 let timetable = null;
 let served = null;
+// Departure lists of the last "From a station" search, sent one station at a
+// time when it is picked (all of them at once can be tens of megabytes).
+let lastTimes = new Map();
 
 self.onmessage = async ({ data }) => {
   const { id, type, payload } = data;
@@ -46,8 +49,12 @@ self.onmessage = async ({ data }) => {
       if (!timetable) throw new Error('The timetable has not loaded yet');
       const started = performance.now();
       const result = directDestinations(timetable, served, payload.body, { today: payload.today });
+      lastTimes = new Map(result.destinations.map((d) => [d.idx, { times: d.times, moreTimes: d.moreTimes }]));
+      for (const d of result.destinations) delete d.times;
       result.elapsedMs = Math.round(performance.now() - started);
       self.postMessage({ id, result });
+    } else if (type === 'destinationTimes') {
+      self.postMessage({ id, result: lastTimes.get(payload.idx) || { times: [], moreTimes: 0 } });
     }
   } catch (err) {
     self.postMessage({ id, error: err.message || String(err) });

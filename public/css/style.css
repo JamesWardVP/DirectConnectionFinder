@@ -478,4 +478,6 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
 .legend .lg-explore { display: none; }
 .exploring .legend .lg-journey { display: none; }
 .exploring .legend .lg-explore { display: flex; }
+.rp-list .rp-loading { padding: 10px 16px; color: var(--ink-3); font-size: 13px; }
+.exploring.reach-changes .legend .lg-journey.lg-change { display: flex; }
 .legend .lg-explore svg { height: 14px; }

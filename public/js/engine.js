@@ -38,6 +38,12 @@ export class Engine {
     return this.call('destinations', { body, today });
   }
 
+  /** Departures to one destination of the last destinations search. */
+  async destinationTimes(idx) {
+    await this.ready;
+    return this.call('destinationTimes', { idx });
+  }
+
   async findStations(query) {
     await this.ready;
     const q = String(query || '').trim().toLowerCase();

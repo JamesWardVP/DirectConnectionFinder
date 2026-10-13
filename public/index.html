@@ -39,9 +39,9 @@
       <form id="search-form" class="search" autocomplete="off" novalidate>
         <div class="segmented task" role="radiogroup" aria-label="What to search for">
           <label><input type="radio" name="task" value="journey" checked><span>Plan a journey</span></label>
-          <label><input type="radio" name="task" value="explore"><span>Direct from a station</span></label>
+          <label><input type="radio" name="task" value="explore"><span>From a station</span></label>
         </div>
-        <p class="hint task-hint" data-tasks="explore">Shows every station you can reach without changing trains. Tip: you can also click any station on the map.</p>
+        <p class="hint task-hint" data-tasks="explore">Shows every station you can reach from here, directly or with the changes you allow. Tip: you can also click any station on the map.</p>
         <div class="endpoints">
           <div class="endpoint" data-side="from">
             <label class="field-label" for="from-input"><span class="pin pin-a">A</span> From</label>
@@ -178,6 +178,16 @@
           <p class="hint">Usual change times run from 4 minutes at small stations to 15 at the big London termini.</p>
         </details>
 
+        <div class="row reach" data-tasks="explore">
+          <span class="field-label">Changes allowed</span>
+          <div class="segmented small" role="radiogroup" aria-label="Changes allowed">
+            <label><input type="radio" name="reach" value="0" checked><span>Direct</span></label>
+            <label><input type="radio" name="reach" value="1"><span>+1 change</span></label>
+            <label><input type="radio" name="reach" value="2"><span>+2</span></label>
+            <label><input type="radio" name="reach" value="3"><span>+3</span></label>
+          </div>
+        </div>
+
         <label class="check" data-tasks="journey"><input type="checkbox" id="showBeaten" checked> Show slower routes that a train with fewer changes beats</label>
 
         <button type="submit" class="go">Find trains</button>
@@ -197,9 +207,9 @@
         <div class="legend-title">Key</div>
         <ul>
           <li><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line"/></svg>Direct</li>
-          <li class="lg-journey"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="12 7"/></svg>1 change</li>
-          <li class="lg-journey"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="0.1 9" stroke-linecap="round"/></svg>2 changes</li>
-          <li class="lg-journey"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="14 5 0.1 5" stroke-linecap="round"/></svg>3 changes</li>
+          <li class="lg-journey lg-change"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="12 7"/></svg>1 change</li>
+          <li class="lg-journey lg-change"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="0.1 9" stroke-linecap="round"/></svg>2 changes</li>
+          <li class="lg-journey lg-change"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" class="lg-line" stroke-dasharray="14 5 0.1 5" stroke-linecap="round"/></svg>3 changes</li>
           <li class="lg-journey"><svg viewBox="0 0 60 10"><line x1="3" y1="5" x2="57" y2="5" stroke="#111" stroke-width="7"/><line x1="3" y1="5" x2="57" y2="5" stroke="#fff" stroke-width="3"/></svg>Walk or Tube</li>
           <li class="lg-explore"><svg viewBox="0 0 60 14"><circle cx="16" cy="7" r="4" fill="#fff" stroke="#111" stroke-width="2"/><circle cx="40" cy="7" r="6" fill="#fff" stroke="#111" stroke-width="2.5"/></svg>Bigger = more trains</li>
         </ul>
