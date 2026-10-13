@@ -314,7 +314,7 @@ export class RouteMap {
       const r = 4 + 5 * Math.sqrt(d.trainsPerDay / maxTrains);
       const dot = L.circleMarker([d.lat, d.lon], {
         radius: r, color: '#111', weight: 2.5, fillColor: '#fff', fillOpacity: 1, className: 'station-hit',
-      }).bindTooltip(`<strong>${escapeHtml(d.name)}</strong><br>${changesLabel(d.changes)} · ${d.trains === d.trainsPerDay ? d.trains : d.trainsPerDay} ${d.changes ? 'departures' : 'trains'} · fastest ${fmtDuration(d.fastest)}`, { direction: 'top', offset: [0, -r], className: 'route-tip' });
+      }).bindTooltip(`<strong>${escapeHtml(d.name)}</strong><br>${changesLabel(d.changes)} · ${d.trains === d.trainsPerDay ? d.trains : d.trainsPerDay} ${data.query.maxChanges ? 'departures' : 'trains'} · fastest ${fmtDuration(d.fastest)}`, { direction: 'top', offset: [0, -r], className: 'route-tip' });
       dot.on('click', (e) => { L.DomEvent.stopPropagation(e); this.callbacks.onDestinationClick?.(d.idx); });
       byIdx.set(d.idx, { d, line, dot, color });
       line.addTo(this.exploreLayer);

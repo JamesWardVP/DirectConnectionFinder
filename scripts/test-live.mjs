@@ -155,6 +155,20 @@ async function desktop() {
     check(planned && /Edinburgh/.test(await page.inputValue('#to-input')), '"Plan this journey" opens journey results');
   }
 
+  // "From a station" with one change allowed: Manchester is reached via a change.
+  await page.check('input[name=task][value=explore]', { force: true });
+  await page.check('input[name=reach][value="1"]', { force: true });
+  const r0 = Date.now();
+  await page.click('.go');
+  const reached = await page.waitForFunction(() => /with up to 1 change/.test(document.querySelector('.summary')?.textContent || ''), null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const reachSummary = reached ? (await page.textContent('.summary')).trim() : '';
+  console.log(`  ${reachSummary} (${Date.now() - r0} ms)`);
+  check(reached && await page.locator('.group-head', { hasText: '1 change' }).count() > 0, '"From a station" with +1 change lists stations reached with a change');
+  await page.fill('.ex-filter', 'Manchester Piccadilly');
+  check(await page.locator('.ex-dest', { hasText: 'Manchester Piccadilly' }).count() > 0, 'Manchester Piccadilly is reachable from Kings Cross with a change');
+  await page.screenshot({ path: 'screenshots/2c-from-station-changes.png' });
+  await page.check('input[name=reach][value="0"]', { force: true });
+
   check(errors.length === 0, `no errors in the browser console${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   await page.close();
 }

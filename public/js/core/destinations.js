@@ -205,9 +205,15 @@ function reachableDestinations(timetable, servedStations, p, { today, maxChanges
           const op = operatorFor(feed, first.train.segments.find((sg) => sg.to > first.boardPos && sg.from <= first.boardPos)?.trip || first.train.segments[0].trip);
           if (!options.has(s)) options.set(s, []);
           options.get(s).push({ date, origin, dep: tau, arr, trains, via, op });
-          const f = fastest.get(s);
-          if (!f || arr - tau < f.duration || (arr - tau === f.duration && trains < f.trains)) {
-            fastest.set(s, { duration: arr - tau, trains, legs: legs.map(compactLeg) });
+          // Fastest overall, and fastest with each number of trains (the map
+          // draws the route with the fewest changes).
+          if (!fastest.has(s)) fastest.set(s, []);
+          const byTrains = fastest.get(s);
+          for (const slot of [0, trains]) {
+            const f = byTrains[slot];
+            if (!f || arr - tau < f.duration || (arr - tau === f.duration && trains < f.trains)) {
+              byTrains[slot] = { duration: arr - tau, trains, legs: legs.map(compactLeg) };
+            }
           }
         }
       },
@@ -219,7 +225,8 @@ function reachableDestinations(timetable, servedStations, p, { today, maxChanges
   const ref = (i) => ({ idx: i, lat: feed.stations[i].lat, lon: feed.stations[i].lon, name: feed.stations[i].name });
   const destinations = [];
   for (const [s, list] of options) {
-    const f = fastest.get(s);
+    const f = fastest.get(s)[0];
+    const fewest = fastest.get(s).find((x, i) => i > 0 && x);
     const departures = new Set(list.map((o) => `${o.date}|${o.origin}|${o.dep}`)).size;
     const groups = new Map();
     for (const o of list) {
@@ -243,12 +250,12 @@ function reachableDestinations(timetable, servedStations, p, { today, maxChanges
         runsOn: mode === 'date' ? null : summariseDays([...new Set(ds.map(weekday))].sort(), ds.length, datesWithService.length),
       }));
     const ops = new Map();
-    for (const l of f.legs) if (l.op) ops.set(l.op.id, l.op);
+    for (const l of fewest.legs) if (l.op) ops.set(l.op.id, l.op);
     const path = [];
-    for (const l of f.legs) for (const i of l.stations) if (path.at(-1) !== i) path.push(i);
+    for (const l of fewest.legs) for (const i of l.stations) if (path.at(-1) !== i) path.push(i);
     destinations.push({
       ...stationRef(feed, s),
-      changes: Math.min(...list.map((o) => o.trains)) - 1,
+      changes: fewest.trains - 1,
       fastestChanges: f.trains - 1,
       via: f.legs.filter((l) => l.op).slice(1).map((l) => feed.stations[l.stations[0]].name),
       trainsPerDay: Math.round((departures / nDays) * 10) / 10,

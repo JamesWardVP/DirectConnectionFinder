@@ -70,7 +70,7 @@ export class ExploreView {
 
   perDay(d) {
     const mode = this.data.query.mode;
-    const what = d.changes ? 'departure' : 'train';
+    const what = this.data.query.maxChanges ? 'departure' : 'train';
     if (mode === 'date') return `${d.trains} ${what}${d.trains === 1 ? '' : 's'}`;
     return `${d.trainsPerDay} a day`;
   }
