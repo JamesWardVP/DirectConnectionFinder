@@ -11,14 +11,16 @@
 
 const INF = 0x3fffffff;
 const NONE = -1;
-const KIND_TRAIN = 1, KIND_WALK = 2;
+export const KIND_TRAIN = 1;
+const KIND_WALK = 2;
 
 /**
  * @param {object} day        from Timetable.day()
  * @param {object} feed       loaded GTFS feed (stations, transfers, minChange)
  * @param {object} q
  * @param {number[]} q.origins       station indexes
- * @param {number[]} q.destinations  station indexes
+ * @param {number[]|null} q.destinations  station indexes; null for every station,
+ *        reported through q.onIteration({ L, updates, origin, tau, reconstruct })
  * @param {number} q.depFrom         earliest departure (minutes on the day clock)
  * @param {number} q.depTo           latest departure
  * @param {number} [q.maxTrains=3]
@@ -33,7 +35,7 @@ export function searchDay(day, feed, q) {
   const changeAt = (s) => q.fixedChange ?? feed.minChange.get(s) ?? minChange;
   const maxWait = q.maxWait ?? 120;
   const n = feed.stations.length;
-  const destSet = new Set(q.destinations);
+  const destSet = new Set(q.destinations || []);
   const originSet = new Set(q.origins);
   const footpaths = buildFootpaths(feed);
   const results = [];
@@ -83,6 +85,11 @@ export function searchDay(day, feed, q) {
         marked = next;
       }
 
+      // Everywhere reachable ("From a station"): let the caller read the labels.
+      if (q.onIteration) {
+        q.onIteration({ L, updates, origin, tau, reconstruct: (k, s) => reconstruct(L, day, k, s) });
+        continue;
+      }
       // Report destinations improved during this iteration.
       const reported = new Set();
       for (const [k, s] of updates) {

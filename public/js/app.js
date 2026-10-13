@@ -133,7 +133,7 @@ document.addEventListener('keydown', (e) => {
   if (state.task === 'explore' && explore.selected != null) clearDestination();
 });
 
-// ---------------------------------------------------------------- direct from a station
+// ---------------------------------------------------------------- from a station
 const explore = new ExploreView($('#results'), {
   onSelect: (d) => (d ? selectDestination(d) : clearDestination()),
   onPlan: (d) => planJourneyTo(d),
@@ -147,24 +147,26 @@ function selectDestination(d, { scrollList = false } = {}) {
   const origin = state.explore.from.stations.length === 1 ? state.explore.from.stations[0].name : state.explore.from.label;
   const mode = state.explore.query.mode;
   const ops = d.operators.map((o) => `<span class="op" style="background:${opColor(o)}">${esc(o.name)}</span>`).join('');
+  const reach = state.explore.query.maxChanges > 0;
+  const count = mode === 'date' ? `${d.trains} ${reach ? 'departure' : 'train'}${d.trains === 1 ? '' : 's'}` : `${d.trainsPerDay} ${reach ? 'departures' : 'trains'} a day`;
   panel.innerHTML = `
     <div class="rp-head">
       <button type="button" class="rp-close" data-act="close" aria-label="Show all destinations">✕</button>
-      <div class="rp-kind">${swatchSvg('#111', 0)}Direct</div>
+      <div class="rp-kind">${swatchSvg('#111', d.changes)}${changesLabel(d.changes)}</div>
       <h2>${esc(origin)} → ${esc(d.name)}</h2>
-      <p class="rp-via">${mode === 'date' ? `${d.trains} train${d.trains === 1 ? '' : 's'}` : `${d.trainsPerDay} trains a day`} · fastest ${fmtDuration(d.fastest)}</p>
+      <p class="rp-via">${count} · fastest ${fmtDuration(d.fastest)}${d.via.length ? ` via ${d.via.map(esc).join(', ')}` : ''}</p>
       <div class="rp-ops">${ops}</div>
     </div>
     <ul class="rp-list" aria-label="Departures">
       ${d.times.map((t) => `<li><button type="button" tabindex="-1">
         <span class="rp-time">${esc(t.depart)} → ${esc(t.arrive)}${t.nextDay ? ' +1' : ''}</span>
         <span class="rp-price">${fmtDuration(t.duration)}</span>
-        <span class="rp-sub">${esc(t.operator.name)}${state.explore.from.stations.length > 1 ? ` · from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span>
+        <span class="rp-sub">${t.via.length ? `change at ${t.via.map(esc).join(', ')} · ` : ''}${esc(t.operator.name)}${state.explore.from.stations.length > 1 ? ` · from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span>
       </button></li>`).join('')}
     </ul>
     <div class="rp-foot">
       <button type="button" class="primary" data-act="plan">Plan this journey</button>
-      <button type="button" data-act="explore">Direct from ${esc(d.name)}</button>
+      <button type="button" data-act="explore">Trains from ${esc(d.name)}</button>
     </div>`;
   panel.hidden = false;
   panel.parentElement.classList.add('has-panel');
@@ -188,13 +190,16 @@ function setTask(task) {
 
 /** Open full journey results (fares, tickets) from the explore origin to a destination. */
 function planJourneyTo(d) {
+  // Allow at least as many changes as the destinations list did.
+  const reach = state.explore?.query.maxChanges || 0;
+  if (reach > +form.elements.maxChanges.value) form.querySelector(`input[name="maxChanges"][value="${reach}"]`).checked = true;
   setTask('journey');
   setLocation('to', stationLoc(d), { preview: false });
   setRadius('to', 0);
   form.requestSubmit();
 }
 
-/** Show everywhere direct from another station. */
+/** Show everywhere reachable from another station (same changes setting). */
 function exploreFrom(s) {
   setTask('explore');
   setLocation('from', stationLoc(s), { preview: false });
@@ -237,7 +242,7 @@ engine.ready.then((meta) => {
 });
 
 // ---------------------------------------------------------------- mode panels
-const goLabel = () => (form.elements.task.value === 'explore' ? 'Show direct destinations' : 'Find trains');
+const goLabel = () => (form.elements.task.value === 'explore' ? 'Show destinations' : 'Find trains');
 
 function syncTask() {
   const task = form.elements.task.value;
@@ -462,6 +467,7 @@ function payload() {
     days: $$('input[name="day"]:checked').map((c) => +c.value),
     weeks: +$('#weeks').value,
     maxChanges: +form.elements.maxChanges.value,
+    reachChanges: +form.elements.reach.value,
     minChange: $('#minChange').value ? +$('#minChange').value : null,
     sort: $('#sort').value,
   };
@@ -503,8 +509,9 @@ function setBusy(text) {
 }
 
 async function runExplore(body) {
-  setBusy('Finding every direct train…');
-  results.showLoading('Finding every direct train…');
+  const text = body.reachChanges ? 'Finding everywhere you can reach…' : 'Finding every direct train…';
+  setBusy(text);
+  results.showLoading(text);
   clearRoute();
   try {
     const data = await engine.destinations(body, isoToday);
@@ -513,6 +520,7 @@ async function runExplore(body) {
     explore.render(data);
     routeMap.setAreas([{ ...data.from, isPoint: state.from?.type === 'point', letter: 'A' }]);
     routeMap.setExplore(data);
+    $('.map-wrap').classList.toggle('reach-changes', data.query.maxChanges > 0);
     $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
     showError(err.message);
@@ -611,7 +619,7 @@ function restoreFromUrl() {
   setLocation('from', s.fromLoc, { preview: false });
   if (s.toLoc) setLocation('to', s.toLoc, { preview: false });
   const setRadio = (name, value) => { const r = form.querySelector(`input[name="${name}"][value="${value}"]`); if (r) r.checked = true; };
-  setRadio('mode', s.mode); setRadio('timeType', s.timeType); setRadio('maxChanges', s.maxChanges);
+  setRadio('mode', s.mode); setRadio('timeType', s.timeType); setRadio('maxChanges', s.maxChanges); setRadio('reach', s.reachChanges ?? 0);
   if (s.date) $('#date').value = s.date;
   if (s.time) $('#time').value = s.time;
   if (s.windowMins) $('#window').value = String(s.windowMins);

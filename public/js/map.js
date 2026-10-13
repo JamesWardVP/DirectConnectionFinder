@@ -268,7 +268,7 @@ export class RouteMap {
     const el = document.createElement('div');
     el.className = 'st-pop';
     el.innerHTML = `<strong>${escapeHtml(s.name)}</strong>
-      <button type="button" data-a="explore" class="primary">Direct trains from here</button>
+      <button type="button" data-a="explore" class="primary">Trains from here</button>
       <div class="st-pop-row"><button type="button" data-a="from">Start here</button><button type="button" data-a="to">End here</button></div>`;
     el.addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
@@ -310,11 +310,11 @@ export class RouteMap {
       const t = n > 1 ? rank.get(d.idx) / (n - 1) : 0;
       const color = rankColor(opColor(d.operators[0]), t);
       const coords = d.path.map((p) => [p.lat, p.lon]);
-      const line = L.polyline(coords, { color, weight: 4, opacity: 0.9, lineJoin: 'round', lineCap: 'round', interactive: false });
+      const line = L.polyline(coords, { color, weight: 4, opacity: 0.9, lineJoin: 'round', lineCap: 'round', interactive: false, ...dashFor(d.changes, 4) });
       const r = 4 + 5 * Math.sqrt(d.trainsPerDay / maxTrains);
       const dot = L.circleMarker([d.lat, d.lon], {
         radius: r, color: '#111', weight: 2.5, fillColor: '#fff', fillOpacity: 1, className: 'station-hit',
-      }).bindTooltip(`<strong>${escapeHtml(d.name)}</strong><br>${d.trains === d.trainsPerDay ? d.trains : d.trainsPerDay} trains · fastest ${fmtDuration(d.fastest)}`, { direction: 'top', offset: [0, -r], className: 'route-tip' });
+      }).bindTooltip(`<strong>${escapeHtml(d.name)}</strong><br>${changesLabel(d.changes)} · ${d.trains === d.trainsPerDay ? d.trains : d.trainsPerDay} ${d.changes ? 'departures' : 'trains'} · fastest ${fmtDuration(d.fastest)}`, { direction: 'top', offset: [0, -r], className: 'route-tip' });
       dot.on('click', (e) => { L.DomEvent.stopPropagation(e); this.callbacks.onDestinationClick?.(d.idx); });
       byIdx.set(d.idx, { d, line, dot, color });
       line.addTo(this.exploreLayer);

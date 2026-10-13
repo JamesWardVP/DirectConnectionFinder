@@ -290,3 +290,22 @@ test('a slower route through another change station is still listed', async () =
   const routes = r.journeys.map((j) => `${j.depart.time} ${j.legs.map((l) => (l.type === 'train' ? `${l.from.name.slice(-1)}>${l.to.name.slice(-1)}` : '~')).join(' ')}`);
   assert.deepEqual(routes.sort(), ['08:00 W>K ~ M>B', '08:10 W>O O>B', '09:00 W>K ~ M>B']);
 });
+
+test('from a station with changes: every station reached, grouped by fewest changes', async () => {
+  const { directDestinations } = await import('../public/js/core/destinations.js');
+  const q = { from: st('A'), mode: 'date', date: WED, time: '07:30', windowMins: 120 };
+  const direct = directDestinations(timetable, served, q, { today: WED });
+  const reach = directDestinations(timetable, served, { ...q, reachChanges: 1 }, { today: WED });
+  const byName = new Map(reach.destinations.map((d) => [d.name, d]));
+  // Everything direct is still direct.
+  for (const d of direct.destinations) assert.equal(byName.get(d.name)?.changes, 0, d.name);
+  // E needs a change at C; F needs the walk from D to W, then a train.
+  assert.equal(byName.get('Station E').changes, 1);
+  assert.deepEqual(byName.get('Station E').via, ['Station C']);
+  assert.equal(byName.get('Station F').changes, 1);
+  assert.ok(!byName.has('Station W'), 'walking alone does not reach a station');
+  assert.ok(!byName.has('Station A'));
+  assert.equal(reach.query.maxChanges, 1);
+  // Lines on the map follow the whole journey.
+  assert.deepEqual(byName.get('Station E').path.map((p) => p.name.slice(-1)), ['A', 'B', 'C', 'E']);
+});
