@@ -1,7 +1,11 @@
 # Builds the site with a fresh timetable and publishes it to GitHub Pages.
 #
-# Runs every night (after Network Rail publishes the day's timetable), on
+# Runs every night (after Network Rail publishes the day's timetable), again
+# in the afternoon as a backstop (GitHub can delay or drop scheduled runs), on
 # every push to main, and on demand from the Actions tab.
+#
+# Runs on other branches only build and check the timetable: deploying and
+# testing the live site are skipped, as only main publishes the site.
 #
 # Timetable source (set in Settings > Secrets and variables > Actions):
 #   secrets NROD_USERNAME + NROD_PASSWORD  Network Rail open data account
@@ -15,6 +19,7 @@ on:
     branches: [main]
   schedule:
     - cron: '23 4 * * *'
+    - cron: '47 15 * * *'
   workflow_dispatch:
 
 permissions:
@@ -75,6 +80,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       page_url: ${{ steps.deployment.outputs.page_url }}
@@ -89,7 +95,7 @@ jobs:
   # Runs even if this run's deploy did not happen, to test what is live.
   test-live:
     needs: deploy
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
