@@ -9,6 +9,7 @@ import { decodeBundle } from '../public/js/core/bundle.js';
 import { Timetable, addDays, weekday } from '../public/js/core/timetable.js';
 import { runSearch, SearchError } from '../public/js/core/search.js';
 import { directDestinations } from '../public/js/core/destinations.js';
+import { oneChangeRoutes } from '../public/js/core/router.js';
 
 const dist = process.argv[2] || 'dist';
 const started = Date.now();
@@ -81,6 +82,17 @@ run('Wakefield Westgate → Beaconsfield, all day', { from: station('WKF'), to: 
     if (change) via.set(change, (via.get(change) || 0) + 1);
   }
   console.log(`  changes at: ${[...via].map(([c, n]) => `${c} ×${n}`).join(', ')}`);
+  // What the per-change-station pass finds before the slack filter.
+  const idx = (c) => feed.stationIndexByCrs.get(c);
+  const alts = oneChangeRoutes(timetable.day(date), feed, { origins: [idx('WKF')], destinations: [idx('BCF')], depFrom: 360, depTo: 1080, minChange: 5 });
+  const best = new Map();
+  for (const a of alts) {
+    const [l1, ...rest] = a.legs, l2 = rest[rest.length - 1];
+    const x = feed.stations[l1.train.stations[l1.alightPos]].crs;
+    const dur = l2.train.arr[l2.alightPos] - l1.train.dep[l1.boardPos];
+    if (!best.has(x) || dur < best.get(x)) best.set(x, dur);
+  }
+  console.log(`  every change station (fastest min): ${[...best].sort((a, b) => a[1] - b[1]).map(([c, d]) => `${c} ${d}`).join(', ')}`);
   check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
   check(via.has('KGX'), 'WKF-BCF: expected a route via London Kings Cross');
 });
