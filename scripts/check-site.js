@@ -74,22 +74,7 @@ run('Sherburn-in-Elmet (10 mi) → Beaconsfield (6 mi), any date', {
 
 // Routes through other change stations must not be hidden by a faster one
 // via London (reported: Wakefield → Oxford → Beaconsfield was missing).
-{
-  const idx = (c) => feed.stationIndexByCrs.get(c);
-  const [wkf, oxf] = [idx('WKF'), idx('OXF')];
-  const perDay = [];
-  for (let d = 0; d < 7; d++) {
-    const day = timetable.day(addDays(date, d));
-    const deps = day.departures[wkf];
-    let n = 0;
-    for (let i = 0; i < deps.time.length; i++) {
-      const t = day.trains[deps.train[i]], o = [...t.stations].indexOf(oxf);
-      if (o > deps.pos[i] && t.dropoff[o]) n++;
-    }
-    perDay.push(`${addDays(date, d)} ${n}`);
-  }
-  console.log(`\nDirect Wakefield Westgate → Oxford trains per day: ${perDay.join(', ')}`);
-}
+// (Direct Wakefield → Oxford trains only run on some days, so search a week.)
 run('Wakefield Westgate → Beaconsfield, every day of the week', { from: station('WKF'), to: station('BCF'), mode: 'days', days: [0, 1, 2, 3, 4, 5, 6], weeks: 1, maxChanges: 1 }, (r) => {
   const via = new Map();
   for (const j of r.journeys) {
