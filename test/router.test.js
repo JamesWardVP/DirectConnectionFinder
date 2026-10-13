@@ -250,3 +250,35 @@ test('direct destinations from several nearby stations skip each other', async (
   assert.ok(!names.includes('Station A') && !names.includes('Station B'));
   assert.ok(names.includes('Station D'));
 });
+
+test('a slower route through another change station is still listed', async () => {
+  // W→K then walk to M for the train to B is fastest every hour; W→O→B is a
+  // little slower but needs no walk across town. Both should be listed.
+  const coords = { W: [53.68, -1.5], K: [51.53, -0.12], M: [51.52, -0.16], O: [51.75, -1.27], B: [51.61, -0.64] };
+  const stops = [['stop_id', 'stop_code', 'stop_name', 'stop_lat', 'stop_lon']];
+  for (const [id, [lat, lon]] of Object.entries(coords)) stops.push([id, `Q${id}${id}`, `Stop ${id}`, lat, lon]);
+  const trips = { L1: [['W', '08:00'], ['K', '10:00']], L2: [['W', '09:00'], ['K', '11:00']],
+    C1: [['M', '10:30'], ['B', '11:00']], C2: [['M', '11:30'], ['B', '12:00']],
+    X1: [['W', '08:10'], ['O', '11:00']], O1: [['O', '11:15'], ['B', '12:10']] };
+  const stopTimes = [['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence']];
+  for (const [id, calls] of Object.entries(trips)) calls.forEach(([s, t], i) => stopTimes.push([id, `${t}:00`, `${t}:00`, s, i + 1]));
+  const dir = writeFeed({
+    'agency.txt': [['agency_id', 'agency_name', 'agency_url', 'agency_timezone'], ['OP', 'Test Rail', 'https://example.test', 'Europe/London']],
+    'routes.txt': [['route_id', 'agency_id', 'route_short_name', 'route_type'], ['R', 'OP', 'R', '2']],
+    'stops.txt': stops,
+    'trips.txt': [['route_id', 'service_id', 'trip_id'], ...Object.keys(trips).map((t) => ['R', 'S', t])],
+    'stop_times.txt': stopTimes,
+    'calendar.txt': [
+      ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'],
+      ['S', 1, 1, 1, 1, 1, 1, 1, '20260101', '20261231'],
+    ],
+    'transfers.txt': [['from_stop_id', 'to_stop_id', 'transfer_type', 'min_transfer_time'], ['K', 'M', 2, 900]],
+  });
+  const f = await loadGtfs(dir);
+  const r = runSearch(new Timetable(f), f.stations.map((s) => s.idx), {
+    from: { type: 'station', crs: 'QWW' }, to: { type: 'station', crs: 'QBB' },
+    mode: 'date', date: WED, time: '07:30', windowMins: 120, maxChanges: 1,
+  }, { today: WED });
+  const routes = r.journeys.map((j) => `${j.depart.time} ${j.legs.map((l) => (l.type === 'train' ? `${l.from.name.slice(-1)}>${l.to.name.slice(-1)}` : '~')).join(' ')}`);
+  assert.deepEqual(routes.sort(), ['08:00 W>K ~ M>B', '08:10 W>O O>B', '09:00 W>K ~ M>B']);
+});

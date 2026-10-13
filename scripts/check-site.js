@@ -72,6 +72,19 @@ run('Sherburn-in-Elmet (10 mi) → Beaconsfield (6 mi), any date', {
   mode: 'time', time: '10:00', windowMins: 720,
 }, (r) => check(r.journeys.length > 0, 'SIE-BCF: expected journeys'));
 
+// Routes through other change stations must not be hidden by a faster one
+// via London (reported: Wakefield → Oxford → Beaconsfield was missing).
+run('Wakefield Westgate → Beaconsfield, all day', { from: station('WKF'), to: station('BCF'), time: '06:00', windowMins: 720, maxChanges: 1 }, (r) => {
+  const via = new Map();
+  for (const j of r.journeys) {
+    const change = j.legs.filter((l) => l.type === 'train').slice(0, -1).map((l) => l.to.crs).join('+');
+    if (change) via.set(change, (via.get(change) || 0) + 1);
+  }
+  console.log(`  changes at: ${[...via].map(([c, n]) => `${c} ×${n}`).join(', ')}`);
+  check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
+  check(via.has('KGX'), 'WKF-BCF: expected a route via London Kings Cross');
+});
+
 // "Direct from a station": everywhere one train goes from London Kings Cross.
 {
   const t1 = Date.now();

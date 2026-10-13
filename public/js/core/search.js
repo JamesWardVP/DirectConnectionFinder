@@ -1,7 +1,7 @@
 // Search orchestration: resolves locations to candidate stations, expands the
 // requested date/time mode into one or more day searches, runs the router,
 // then ranks, aggregates, prices and links the journeys for the client.
-import { searchDay } from './router.js';
+import { searchDay, oneChangeRoutes } from './router.js';
 import { addDays, isoDate, weekday } from './timetable.js';
 import { haversineKm, priceJourney } from './fares.js';
 import { bookingLinks } from './links.js';
@@ -9,6 +9,10 @@ import { bookingLinks } from './links.js';
 const MAX_STATIONS_PER_SIDE = 25;
 const MAX_RESULTS = 250;
 const DAY = 1440;
+// A route through another change station is listed when it takes at most
+// 1.5 times as long as the fastest journey, plus half an hour.
+const ALTERNATIVE_SLOWER = 1.5;
+const ALTERNATIVE_EXTRA = 30;
 const DEFAULT_CHANGE = 5; // minutes, where a station has no usual change time
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -140,7 +144,7 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
     if (!timetable.hasServiceOn(date)) continue;
     datesWithService.push(date);
     const day = timetable.day(date);
-    const found = searchDay(day, feed, {
+    const q = {
       origins: originIdx,
       destinations: destIdx,
       depFrom, depTo,
@@ -148,14 +152,25 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
       minChange: DEFAULT_CHANGE,
       fixedChange: fixedChange ?? undefined,
       maxWait: Number(p.maxWait) || 120,
-    });
-    for (const r of found) {
+    };
+    const today = [];
+    const seen = new Set();
+    const add = (r, alternative) => {
       const j = buildJourney(feed, r, date, from, to);
+      if (seen.has(j.sig)) return;
       // Discard routes that loop back through a station they already passed.
-      if (new Set(j.visited.map((v) => v.station)).size !== j.visited.length) continue;
-      if (j.arrMin < arrFrom || j.arrMin > arrTo) continue;
-      raw.push(j);
-    }
+      if (new Set(j.visited.map((v) => v.station)).size !== j.visited.length) return;
+      if (j.arrMin < arrFrom || j.arrMin > arrTo) return;
+      seen.add(j.sig);
+      j.alternative = alternative;
+      today.push(j);
+    };
+    for (const r of searchDay(day, feed, q)) add(r, false);
+    // Other change stations that the fastest routes overshadow.
+    if (maxTrains >= 2) for (const r of oneChangeRoutes(day, feed, q)) add(r, true);
+    // ...but only those that are a reasonable alternative.
+    const fastest = Math.min(...today.filter((j) => !j.alternative).map((j) => j.duration));
+    raw.push(...today.filter((j) => !j.alternative || j.duration <= fastest * ALTERNATIVE_SLOWER + ALTERNATIVE_EXTRA));
   }
 
   markDominated(raw);
