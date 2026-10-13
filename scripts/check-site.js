@@ -92,6 +92,30 @@ run('Wakefield Westgate → Beaconsfield, all day', { from: station('WKF'), to: 
     const dur = l2.train.arr[l2.alightPos] - l1.train.dep[l1.boardPos];
     if (!best.has(x) || dur < best.get(x)) best.set(x, dur);
   }
+  {
+    const day = timetable.day(date), bcf = idx('BCF'), oxf = idx('OXF'), wkf = idx('WKF');
+    const crsOf = (i) => feed.stations[i].crs || feed.stations[i].name;
+    const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const boardFor = new Map();
+    day.trains.forEach((t) => {
+      const d = [...t.stations].indexOf(bcf);
+      if (d < 0 || !t.dropoff[d]) return;
+      for (let p = 0; p < d; p++) if (t.pickup[p]) boardFor.set(t.stations[p], (boardFor.get(t.stations[p]) || 0) + 1);
+    });
+    console.log(`  [diag] stations with trains on to BCF: ${[...boardFor].map(([s, n]) => `${crsOf(s)}×${n}`).join(' ')}`);
+    const deps = day.departures[wkf];
+    for (let i = 0; i < deps.time.length; i++) {
+      const t = day.trains[deps.train[i]], st = [...t.stations];
+      if (!st.includes(oxf)) continue;
+      const o = st.indexOf(oxf);
+      console.log(`  [diag] WKF ${hm(deps.time[i])} → OXF ${hm(t.arr[o])} dropoff=${t.dropoff[o]} (${st.length} calls, pos ${deps.pos[i]}→${o})`);
+    }
+    const od = day.departures[oxf];
+    for (let i = 0; i < od.time.length; i++) {
+      const t = day.trains[od.train[i]], st = [...t.stations], b = st.indexOf(bcf);
+      if (b > od.pos[i]) console.log(`  [diag] OXF ${hm(od.time[i])} → BCF ${hm(t.arr[b])} dropoff=${t.dropoff[b]} via ${st.slice(od.pos[i], b + 1).map(crsOf).join(',')}`);
+    }
+  }
   console.log(`  every change station (fastest min): ${[...best].sort((a, b) => a[1] - b[1]).map(([c, d]) => `${c} ${d}`).join(', ')}`);
   check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
   check(via.has('KGX'), 'WKF-BCF: expected a route via London Kings Cross');
