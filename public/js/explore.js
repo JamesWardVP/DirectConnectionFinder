@@ -2,7 +2,7 @@ import {
   escapeHtml as esc, nearestNote, fmtDuration, fmtDate, fmtMiles, opColor, swatchSvg, changesLabel,
 } from './util.js';
 
-const PAGE = 80;
+const PAGE = 40;
 const SORTS = {
   trains: (a, b) => b.trainsPerDay - a.trainsPerDay || a.fastest - b.fastest,
   fastest: (a, b) => a.fastest - b.fastest,
@@ -30,7 +30,7 @@ export class ExploreView {
     this.sort = 'trains';
     this.filter = '';
     this.selected = null;
-    this.limit = PAGE;
+    this.limits = new Map();
     const q = data.query;
     const origin = data.from.stations.length === 1 ? data.from.stations[0].name : `${data.from.stations.length} stations near ${data.from.label}`;
     const when = q.mode === 'date'
@@ -83,18 +83,23 @@ export class ExploreView {
       list.innerHTML = '<div class="empty"><p>No trains found. Try a longer time window, a wider radius, allowing changes or "Days of week".</p></div>';
       return;
     }
-    const counts = new Map();
-    for (const d of items) counts.set(d.changes, (counts.get(d.changes) || 0) + 1);
-    let group = -1;
-    list.innerHTML = items.slice(0, this.limit).map((d) => {
-      let head = '';
-      if (d.changes !== group) {
-        group = d.changes;
-        head = `<h2 class="group-head">${swatchSvg('#111', d.changes)}${d.changes ? changesLabel(d.changes) : 'Direct trains'}<span class="count">${counts.get(d.changes)}</span></h2>`;
-      }
-      return head + this.rowHtml(d);
-    }).join('')
-      + (items.length > this.limit ? `<button type="button" class="more-results" data-act="more">Show ${Math.min(PAGE, items.length - this.limit)} more</button>` : '');
+    // Each group (Direct, 1 change, ...) shows its first rows and its own
+    // "Show more", so every group can be seen without paging through others.
+    const groups = new Map();
+    for (const d of items) {
+      if (!groups.has(d.changes)) groups.set(d.changes, []);
+      groups.get(d.changes).push(d);
+    }
+    list.innerHTML = [...groups].map(([changes, ds]) => {
+      const limit = this.limitFor(changes);
+      return `<h2 class="group-head">${swatchSvg('#111', changes)}${changes ? changesLabel(changes) : 'Direct trains'}<span class="count">${ds.length}</span></h2>`
+        + ds.slice(0, limit).map((d) => this.rowHtml(d)).join('')
+        + (ds.length > limit ? `<button type="button" class="more-results" data-act="more" data-changes="${changes}">Show ${Math.min(PAGE, ds.length - limit)} more</button>` : '');
+    }).join('');
+  }
+
+  limitFor(changes) {
+    return this.limits.get(changes) ?? PAGE;
   }
 
   rowHtml(d) {
@@ -136,7 +141,12 @@ export class ExploreView {
     if (this.el.dataset.view !== 'explore') return;
     const act = e.target.closest('[data-act]')?.dataset.act;
     const art = e.target.closest('.ex-dest');
-    if (act === 'more') { this.limit += PAGE; this.drawList(); return; }
+    if (act === 'more') {
+      const changes = +e.target.closest('[data-act]').dataset.changes;
+      this.limits.set(changes, this.limitFor(changes) + PAGE);
+      this.drawList();
+      return;
+    }
     const dest = art && this.data.destinations.find((d) => d.idx === +art.dataset.idx);
     if (act === 'plan' && dest) { this.callbacks.onPlan?.(dest); return; }
     if (act === 'explore' && dest) { this.callbacks.onExplore?.(dest); return; }
@@ -147,11 +157,14 @@ export class ExploreView {
 
   select(idx, { notify = false, scroll = false } = {}) {
     this.selected = idx;
-    if (idx != null && !this.visible().slice(0, this.limit).some((d) => d.idx === idx)) {
+    const d = idx == null ? null : this.data.destinations.find((x) => x.idx === idx);
+    if (d && !this.el.querySelector(`.ex-dest[data-idx="${idx}"]`)) {
+      // Picked on the map but not in the list: clear the filter and page to it.
       this.filter = '';
       const input = this.el.querySelector('.ex-filter');
       if (input) input.value = '';
-      this.limit = Math.max(this.limit, this.visible().findIndex((d) => d.idx === idx) + 1);
+      const pos = this.visible().filter((x) => x.changes === d.changes).findIndex((x) => x.idx === idx);
+      this.limits.set(d.changes, Math.max(this.limitFor(d.changes), pos + 1));
     }
     this.drawList();
     if (notify) this.callbacks.onSelect?.(idx == null ? null : this.data.destinations.find((d) => d.idx === idx));
