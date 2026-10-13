@@ -9,7 +9,6 @@ import { decodeBundle } from '../public/js/core/bundle.js';
 import { Timetable, addDays, weekday } from '../public/js/core/timetable.js';
 import { runSearch, SearchError } from '../public/js/core/search.js';
 import { directDestinations } from '../public/js/core/destinations.js';
-import { oneChangeRoutes } from '../public/js/core/router.js';
 
 const dist = process.argv[2] || 'dist';
 const started = Date.now();
@@ -75,48 +74,29 @@ run('Sherburn-in-Elmet (10 mi) → Beaconsfield (6 mi), any date', {
 
 // Routes through other change stations must not be hidden by a faster one
 // via London (reported: Wakefield → Oxford → Beaconsfield was missing).
-run('Wakefield Westgate → Beaconsfield, all day', { from: station('WKF'), to: station('BCF'), time: '06:00', windowMins: 720, maxChanges: 1 }, (r) => {
+{
+  const idx = (c) => feed.stationIndexByCrs.get(c);
+  const [wkf, oxf] = [idx('WKF'), idx('OXF')];
+  const perDay = [];
+  for (let d = 0; d < 7; d++) {
+    const day = timetable.day(addDays(date, d));
+    const deps = day.departures[wkf];
+    let n = 0;
+    for (let i = 0; i < deps.time.length; i++) {
+      const t = day.trains[deps.train[i]], o = [...t.stations].indexOf(oxf);
+      if (o > deps.pos[i] && t.dropoff[o]) n++;
+    }
+    perDay.push(`${addDays(date, d)} ${n}`);
+  }
+  console.log(`\nDirect Wakefield Westgate → Oxford trains per day: ${perDay.join(', ')}`);
+}
+run('Wakefield Westgate → Beaconsfield, every day of the week', { from: station('WKF'), to: station('BCF'), mode: 'days', days: [0, 1, 2, 3, 4, 5, 6], weeks: 1, maxChanges: 1 }, (r) => {
   const via = new Map();
   for (const j of r.journeys) {
     const change = j.legs.filter((l) => l.type === 'train').slice(0, -1).map((l) => l.to.crs).join('+');
     if (change) via.set(change, (via.get(change) || 0) + 1);
   }
   console.log(`  changes at: ${[...via].map(([c, n]) => `${c} ×${n}`).join(', ')}`);
-  // What the per-change-station pass finds before the slack filter.
-  const idx = (c) => feed.stationIndexByCrs.get(c);
-  const alts = oneChangeRoutes(timetable.day(date), feed, { origins: [idx('WKF')], destinations: [idx('BCF')], depFrom: 360, depTo: 1080, minChange: 5 });
-  const best = new Map();
-  for (const a of alts) {
-    const [l1, ...rest] = a.legs, l2 = rest[rest.length - 1];
-    const x = feed.stations[l1.train.stations[l1.alightPos]].crs;
-    const dur = l2.train.arr[l2.alightPos] - l1.train.dep[l1.boardPos];
-    if (!best.has(x) || dur < best.get(x)) best.set(x, dur);
-  }
-  {
-    const day = timetable.day(date), bcf = idx('BCF'), oxf = idx('OXF'), wkf = idx('WKF');
-    const crsOf = (i) => feed.stations[i].crs || feed.stations[i].name;
-    const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    const boardFor = new Map();
-    day.trains.forEach((t) => {
-      const d = [...t.stations].indexOf(bcf);
-      if (d < 0 || !t.dropoff[d]) return;
-      for (let p = 0; p < d; p++) if (t.pickup[p]) boardFor.set(t.stations[p], (boardFor.get(t.stations[p]) || 0) + 1);
-    });
-    console.log(`  [diag] stations with trains on to BCF: ${[...boardFor].map(([s, n]) => `${crsOf(s)}×${n}`).join(' ')}`);
-    const deps = day.departures[wkf];
-    for (let i = 0; i < deps.time.length; i++) {
-      const t = day.trains[deps.train[i]], st = [...t.stations];
-      if (!st.includes(oxf)) continue;
-      const o = st.indexOf(oxf);
-      console.log(`  [diag] WKF ${hm(deps.time[i])} → OXF ${hm(t.arr[o])} dropoff=${t.dropoff[o]} (${st.length} calls, pos ${deps.pos[i]}→${o})`);
-    }
-    const od = day.departures[oxf];
-    for (let i = 0; i < od.time.length; i++) {
-      const t = day.trains[od.train[i]], st = [...t.stations], b = st.indexOf(bcf);
-      if (b > od.pos[i]) console.log(`  [diag] OXF ${hm(od.time[i])} → BCF ${hm(t.arr[b])} dropoff=${t.dropoff[b]} via ${st.slice(od.pos[i], b + 1).map(crsOf).join(',')}`);
-    }
-  }
-  console.log(`  every change station (fastest min): ${[...best].sort((a, b) => a[1] - b[1]).map(([c, d]) => `${c} ${d}`).join(', ')}`);
   check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
   check(via.has('KGX'), 'WKF-BCF: expected a route via London Kings Cross');
 });
