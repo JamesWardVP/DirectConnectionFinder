@@ -64,7 +64,7 @@ export class ResultsView {
     if (q.datesWithService.length < q.dates.length) {
       notes.push(`No timetable data for ${q.dates.length - q.datesWithService.length} of the dates searched.`);
     }
-    if (this.hiddenCount) notes.push(`${this.hiddenCount} slower route${this.hiddenCount > 1 ? 's' : ''} with more changes hidden (see More options).`);
+    if (this.hiddenCount) notes.push(`${this.hiddenCount} slower route${this.hiddenCount > 1 ? 's' : ''} with more changes hidden. Tick “Show slower routes” to see them.`);
     if (data.truncated) notes.push(`Showing the best ${data.journeys.length} of ${data.total}.`);
     if (notes.length) parts.push(`<ul class="notes">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>`);
 
@@ -126,6 +126,12 @@ export class ResultsView {
         const how = { walk: 'Walk', tube: 'Underground', tram: 'Tram', bus: 'Bus' }[leg.mode] || 'Transfer';
         out.push(`<div class="transfer"><span></span><span class="n">${how} to ${esc(leg.to.name)} · allow ${leg.minutes} min</span></div>`);
         continue;
+      }
+      if (leg.change) {
+        const { allow, usual, wait } = leg.change;
+        const tight = wait < allow + 2 ? ' tight' : '';
+        out.push(`<div class="transfer change${tight}"><span></span><span class="n">Change at ${esc(leg.from.name)} · ${fmtDuration(wait)} to change`
+          + ` <span class="allow">(${usual ? `usually allow ${allow} min here` : `allowing ${allow} min`})</span></span></div>`);
       }
       const c = opColor(leg.operator);
       const inner = leg.calls.slice(1, -1);

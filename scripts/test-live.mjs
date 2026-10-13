@@ -40,6 +40,7 @@ async function desktop() {
   const status = await page.textContent('#data-status');
   console.log(`  status line: ${status}`);
   check(!(await page.isVisible('#demo-banner')), 'real timetable (no demo banner)');
+  check(await page.isVisible('#showBeaten') && await page.isChecked('#showBeaten'), '"Show slower routes" is visible and on by default');
 
   // Search London Kings Cross → Edinburgh tomorrow at 09:00.
   const tomorrow = await page.evaluate(() => {
@@ -112,6 +113,13 @@ async function desktop() {
   links.forEach((l) => console.log(`    ${l}`));
   check(links.some((l) => l.includes('nationalrail.co.uk')), 'journey details have a National Rail link');
   check(await page.locator('.detail .stop.major').count() >= 2, 'journey details show the line diagram');
+  const changeRow = await page.locator('.journey', { hasText: 'change at' }).first();
+  if (await changeRow.count()) {
+    await changeRow.locator('.card').click();
+    const text = await page.waitForSelector('.detail .transfer.change', { timeout: 5000 }).then((e) => e.innerText()).catch(() => '');
+    console.log(`  ${text}`);
+    check(/usually allow \d+ min/.test(text), 'journeys with a change say how long each station allows');
+  }
   await page.screenshot({ path: 'screenshots/2-journey.png' });
 
   // Postcode search goes straight from the browser to postcodes.io.

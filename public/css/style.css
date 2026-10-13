@@ -304,6 +304,10 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
   background: #fff; border-left: 3px solid var(--ink); border-right: 3px solid var(--ink);
 }
 
+.transfer.change .n::before { border-style: dotted; }
+.transfer .allow { color: var(--ink-3, #767676); }
+.transfer.tight .n { color: #8a5a00; }
+
 .fare-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .fare-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
 .fare-table td:last-child { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }

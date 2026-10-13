@@ -9,6 +9,7 @@ import { bookingLinks } from './links.js';
 const MAX_STATIONS_PER_SIDE = 25;
 const MAX_RESULTS = 250;
 const DAY = 1440;
+const DEFAULT_CHANGE = 5; // minutes, where a station has no usual change time
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export class SearchError extends Error {
@@ -131,6 +132,8 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
     }
   }
 
+  // Blank means each station's usual change time; a number fixes it everywhere.
+  const fixedChange = Number(p.minChange) > 0 ? Number(p.minChange) : null;
   const raw = [];
   const datesWithService = [];
   for (const date of dates) {
@@ -142,7 +145,8 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
       destinations: destIdx,
       depFrom, depTo,
       maxTrains,
-      minChange: Number(p.minChange) || 5,
+      minChange: DEFAULT_CHANGE,
+      fixedChange: fixedChange ?? undefined,
       maxWait: Number(p.maxWait) || 120,
     });
     for (const r of found) {
@@ -158,7 +162,7 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
   const journeys = aggregate(raw, mode, dates.length);
   rank(journeys, p.sort || 'duration');
   const limited = journeys.slice(0, MAX_RESULTS);
-  for (const j of limited) finishJourney(feed, j);
+  for (const j of limited) finishJourney(feed, j, fixedChange);
   const routes = buildRoutes(feed, limited);
 
   const describeSide = (side) => ({
@@ -303,6 +307,11 @@ function rank(journeys, sort) {
   journeys.forEach((j, i) => { j.rank = i + 1; });
 }
 
+/** Minutes allowed to change trains at a station (matches the router). */
+export function changeMinutes(feed, station, fixedChange = null) {
+  return fixedChange ?? feed.minChange.get(station) ?? DEFAULT_CHANGE;
+}
+
 export function operatorFor(feed, trip) {
   const route = feed.routes.get(trip.routeId);
   const agency = route ? feed.agencies.get(route.agencyId) : null;
@@ -315,11 +324,11 @@ export function operatorFor(feed, trip) {
 }
 
 /** Prices, links and display fields for a journey that made the final list. */
-function finishJourney(feed, j) {
+function finishJourney(feed, j, fixedChange) {
   const firstDate = j.dates[0];
   const sref = (i) => stationRef(feed, i);
   const operators = new Map();
-  j.legsOut = j.legs.map((l) => {
+  j.legsOut = j.legs.map((l, i) => {
     if (l.type === 'transfer') {
       return {
         type: 'transfer', mode: l.mode, minutes: l.minutes,
@@ -348,6 +357,12 @@ function finishJourney(feed, j) {
       from: sref(l.from), to: sref(l.to),
       depart: clockRef(j.date, l.depMin), arrive: clockRef(j.date, l.arrMin),
       minutes: l.arrMin - l.depMin,
+      // Changing from the previous train here: the time allowed and the time you get.
+      change: j.legs[i - 1]?.type === 'train' ? {
+        allow: changeMinutes(feed, l.from, fixedChange),
+        usual: fixedChange === null,
+        wait: l.depMin - j.legs[i - 1].arrMin,
+      } : null,
       calls: l.calls.map((c) => ({ ...sref(c.station), arrive: fmtTime(c.arrMin), depart: fmtTime(c.depMin) })),
     };
   });

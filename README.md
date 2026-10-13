@@ -72,7 +72,7 @@ If a download or build fails, the previous deployment stays live.
 Known gaps:
 
 - **Bank holidays:** the "does not run on bank holidays" flag is ignored, because the extract has no bank-holiday calendar.
-- **Minimum connection times:** every station uses the default 5 minutes. The minimum can be changed under *More options*.
+- **Change times:** each station has its own usual time to change trains. Big stations are listed in `data/interchange.csv` (for example 15 minutes at the London termini and 10 at Birmingham New Street). Every other station gets a time from how busy it is: 7 minutes at the busiest 3%, 5 at the next busiest, and 4 at small stations. These times are estimates, and you can edit the CSV. Under *More options* you can use one fixed change time everywhere instead.
 
 ### GTFS
 

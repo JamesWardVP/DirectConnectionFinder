@@ -1,0 +1,75 @@
+# Usual time to change trains at a station, in minutes: crs,minutes,station
+# Big stations need longer (long platforms, footbridges, crowds). Stations not
+# listed get a time based on how busy they are (see lib/interchange.js).
+crs,minutes,station
+KGX,15,London Kings Cross
+STP,15,London St Pancras International
+EUS,15,London Euston
+PAD,15,London Paddington
+LST,15,London Liverpool Street
+VIC,15,London Victoria
+WAT,15,London Waterloo
+LBG,10,London Bridge
+CHX,10,London Charing Cross
+CST,10,London Cannon Street
+FST,10,London Fenchurch Street
+MYB,10,London Marylebone
+CLJ,10,Clapham Junction
+SRA,10,Stratford
+ECR,7,East Croydon
+RDG,10,Reading
+BHM,10,Birmingham New Street
+BMO,7,Birmingham Moor Street
+MAN,10,Manchester Piccadilly
+MCV,7,Manchester Victoria
+LDS,10,Leeds
+YRK,7,York
+NCL,7,Newcastle
+EDB,10,Edinburgh Waverley
+GLC,10,Glasgow Central
+GLQ,7,Glasgow Queen Street
+CRE,10,Crewe
+BRI,10,Bristol Temple Meads
+BPW,7,Bristol Parkway
+CDF,7,Cardiff Central
+SWA,7,Swansea
+SHF,7,Sheffield
+NOT,7,Nottingham
+DBY,7,Derby
+LEI,7,Leicester
+LIV,7,Liverpool Lime Street
+PRE,7,Preston
+WGN,7,Wigan North Western
+DON,7,Doncaster
+PBO,7,Peterborough
+WFJ,7,Watford Junction
+MKC,7,Milton Keynes Central
+COV,7,Coventry
+BHI,7,Birmingham International
+WVH,7,Wolverhampton
+SOU,7,Southampton Central
+BSK,7,Basingstoke
+WOK,7,Woking
+GLD,7,Guildford
+BTN,7,Brighton
+GTW,10,Gatwick Airport
+EXD,7,Exeter St Davids
+PLY,7,Plymouth
+OXF,7,Oxford
+CBG,7,Cambridge
+NRW,7,Norwich
+IPS,7,Ipswich
+CHM,7,Chelmsford
+AFK,7,Ashford International
+HUL,7,Hull
+ABD,7,Aberdeen
+DEE,7,Dundee
+INV,7,Inverness
+STG,7,Stirling
+HYM,5,Haymarket
+CAR,7,Carlisle
+LAN,5,Lancaster
+SPT,5,Stockport
+WKF,5,Wakefield Westgate
+HFD,7,Hereford
+NWP,7,Newport (South Wales)

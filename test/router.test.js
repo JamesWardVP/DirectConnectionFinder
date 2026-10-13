@@ -7,6 +7,7 @@ import { priceJourney, estimateFare } from '../public/js/core/fares.js';
 import { nationalRailUrl } from '../public/js/core/links.js';
 import { encodeBundle, decodeBundle } from '../public/js/core/bundle.js';
 import { miniFeed, writeFeed } from './helpers.js';
+import { applyChangeTimes, BANDS } from '../lib/interchange.js';
 
 // Everything runs on a feed that has been through the website's bundle
 // format, exactly as the browser sees it.
@@ -43,6 +44,39 @@ test('respects minimum change time', () => {
   assert.equal(names(five.journeys[0]), 'A>C C>E');
   const three = search({ from: st('A'), to: st('E'), time: '07:30', minChange: 3 });
   assert.equal(three.journeys[0].arrive.time, '09:10');
+});
+
+test('each station has its own usual change time, unless one is fixed', () => {
+  const c = feed.stationIndexByCrs.get('XCC');
+  feed.minChange.set(c, 3);
+  try {
+    const usual = search({ from: st('A'), to: st('E'), time: '07:30' });
+    assert.equal(usual.journeys[0].arrive.time, '09:10'); // C is quick to change at
+    const change = usual.journeys[0].legs[1].change;
+    assert.deepEqual(change, { allow: 3, usual: true, wait: change.wait });
+    assert.ok(change.wait >= 3);
+    const fixed = search({ from: st('A'), to: st('E'), time: '07:30', minChange: 10 });
+    assert.equal(fixed.journeys[0].arrive.time, '09:20');
+    assert.deepEqual(fixed.journeys[0].legs[1].change.allow, 10);
+  } finally {
+    feed.minChange.delete(c);
+  }
+});
+
+test('change times: curated for big stations, by size for the rest', () => {
+  const f = {
+    trips: [
+      { stations: [0, 1, 2] }, { stations: [0, 1] }, { stations: [0, 3] }, { stations: [0, 1, 4] },
+    ],
+    minChange: new Map([[4, 2]]), // from the timetable itself: kept
+    stationIndexByCrs: new Map([['BIG', 1], ['TTF', 4]]),
+  };
+  const counts = applyChangeTimes(f, [['BIG', 15], ['TTF', 9], ['NOPE', 7]]);
+  assert.equal(f.minChange.get(1), 15);
+  assert.equal(f.minChange.get(4), 2);
+  assert.equal(f.minChange.get(0), BANDS[0].minutes); // busiest
+  assert.equal(f.minChange.get(3), BANDS[2].minutes);
+  assert.deepEqual(counts, { feed: 1, curated: 1, estimated: 3 });
 });
 
 test('trips sharing a block are one physical train, so the journey is direct', () => {

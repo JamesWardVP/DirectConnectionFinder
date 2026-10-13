@@ -22,13 +22,15 @@ const KIND_TRAIN = 1, KIND_WALK = 2;
  * @param {number} q.depFrom         earliest departure (minutes on the day clock)
  * @param {number} q.depTo           latest departure
  * @param {number} [q.maxTrains=3]
- * @param {number} [q.minChange=5]   default minutes to change trains at a station
+ * @param {number} [q.minChange=5]   minutes to change trains where the station has no usual time
+ * @param {number} [q.fixedChange]   use this change time everywhere instead of each station's own
  * @param {number} [q.maxWait=120]   longest wait for a connection
  * @returns {Array<{origin:number, destination:number, legs:object[]}>}
  */
 export function searchDay(day, feed, q) {
   const maxTrains = Math.max(1, Math.min(q.maxTrains ?? 3, 6));
   const minChange = q.minChange ?? 5;
+  const changeAt = (s) => q.fixedChange ?? feed.minChange.get(s) ?? minChange;
   const maxWait = q.maxWait ?? 120;
   const n = feed.stations.length;
   const destSet = new Set(q.destinations);
@@ -62,7 +64,7 @@ export function searchDay(day, feed, q) {
         for (const s of marked) {
           if (destSet.has(s)) continue; // no need to travel beyond a destination
           const arrivedBy = L.kind[k - 1][s];
-          const ready = L.arr[k - 1][s] + (arrivedBy === KIND_WALK ? 0 : (feed.minChange.get(s) ?? minChange));
+          const ready = L.arr[k - 1][s] + (arrivedBy === KIND_WALK ? 0 : changeAt(s));
           const prevTrain = arrivedBy === KIND_TRAIN ? L.train[k - 1][s] : NONE;
           const stayOn = prevTrain === NONE ? null : onwardArrivals(day.trains[prevTrain], L.alight[k - 1][s]);
           const travelled = pathStations(L, day, k - 1, s);

@@ -160,10 +160,11 @@
           <div class="row">
             <label class="inline"><span>Change time</span>
               <select id="minChange">
-                <option value="3">3 min</option>
-                <option value="5" selected>5 min</option>
-                <option value="10">10 min</option>
-                <option value="15">15 min</option>
+                <option value="" selected>Usual for each station</option>
+                <option value="3">3 min everywhere</option>
+                <option value="5">5 min everywhere</option>
+                <option value="10">10 min everywhere</option>
+                <option value="15">15 min everywhere</option>
               </select>
             </label>
             <label class="inline"><span>Then sort by</span>
@@ -174,8 +175,10 @@
               </select>
             </label>
           </div>
-          <label class="check"><input type="checkbox" id="showBeaten"> Show slower routes that a train with fewer changes beats</label>
+          <p class="hint">Usual change times run from 4 minutes at small stations to 15 at the big London termini.</p>
         </details>
+
+        <label class="check" data-tasks="journey"><input type="checkbox" id="showBeaten" checked> Show slower routes that a train with fewer changes beats</label>
 
         <button type="submit" class="go">Find trains</button>
         <p id="form-error" class="error" role="alert" hidden></p>
