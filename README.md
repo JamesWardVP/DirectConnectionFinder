@@ -33,7 +33,7 @@ It is a static website that runs on **GitHub Pages**. A GitHub Action downloads 
    | `TIMETABLE_GTFS_URL` | Variable | Alternatively, the URL of any GTFS zip. |
    | `TIMETABLE_DAYS` | Variable | Optional. How many days ahead to include (default 28). |
 
-3. **Run it.** Push to `main`, or open **Actions → Build and deploy → Run workflow**. After that it runs every night at 04:23 UTC (05:23 UK time in summer), after Network Rail publishes the day's timetable.
+3. **Run it.** Push to `main`, or open **Actions → Build and deploy → Run workflow**. After that it runs every night at 04:23 UTC (05:23 UK time in summer), after Network Rail publishes the day's timetable, and again at 15:47 UTC as a backstop, because GitHub can delay or skip scheduled runs when it is busy. Runs started on other branches only build and check the timetable; only `main` deploys.
 
 The site will be at `https://<user>.github.io/<repository>/`. The line under the *Find trains* button shows which timetable is loaded, when it was built, and which dates it covers.
 
