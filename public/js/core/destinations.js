@@ -18,6 +18,9 @@ const MAX_TIMES = 80;
 const MAX_TIMES_WITH_CHANGES = 30;
 const MAX_DATES_WITH_CHANGES = 7;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const round5 = (x) => Math.round(x * 1e5) / 1e5;
+/** [lat, lon] of a station, for drawing lines. */
+const latLonOf = (feed) => (i) => [round5(feed.stations[i].lat), round5(feed.stations[i].lon)];
 
 /**
  * @param {Timetable} timetable
@@ -28,6 +31,7 @@ export function directDestinations(timetable, servedStations, p, { today = new D
   const maxChanges = Math.max(0, Math.min(Number(p.reachChanges) || 0, 3));
   if (maxChanges > 0) return reachableDestinations(timetable, servedStations, p, { today, maxChanges });
   const feed = timetable.feed;
+  const latLon = latLonOf(feed);
   const from = resolveLocation(feed, servedStations, p.from, p.fromRadiusKm);
   const origins = new Set(from.stations.map((s) => s.idx));
   const mode = p.mode || 'date';
@@ -124,7 +128,7 @@ export function directDestinations(timetable, servedStations, p, { today = new D
       last: times.at(-1).depart,
       operators: [...ops.values()],
       distanceKm: Math.round(haversineKm(centre, st)),
-      path: path.map((i) => ({ idx: i, lat: feed.stations[i].lat, lon: feed.stations[i].lon, name: feed.stations[i].name })),
+      path: path.map(latLon),
       times: times.slice(0, MAX_TIMES),
       moreTimes: Math.max(0, times.length - MAX_TIMES),
     });
@@ -149,6 +153,7 @@ export function directDestinations(timetable, servedStations, p, { today = new D
  */
 function reachableDestinations(timetable, servedStations, p, { today, maxChanges }) {
   const feed = timetable.feed;
+  const latLon = latLonOf(feed);
   const from = resolveLocation(feed, servedStations, p.from, p.fromRadiusKm);
   const origins = new Set(from.stations.map((s) => s.idx));
   const mode = p.mode || 'date';
@@ -222,7 +227,6 @@ function reachableDestinations(timetable, servedStations, p, { today, maxChanges
 
   const nDays = Math.max(datesWithService.length, 1);
   const centre = { lat: from.lat, lon: from.lon };
-  const ref = (i) => ({ idx: i, lat: feed.stations[i].lat, lon: feed.stations[i].lon, name: feed.stations[i].name });
   const destinations = [];
   for (const [s, list] of options) {
     const f = fastest.get(s)[0];
@@ -265,7 +269,7 @@ function reachableDestinations(timetable, servedStations, p, { today, maxChanges
       last: times.at(-1).depart,
       operators: [...ops.values()],
       distanceKm: Math.round(haversineKm(centre, feed.stations[s])),
-      path: path.map(ref),
+      path: path.map(latLon),
       times: times.slice(0, MAX_TIMES_WITH_CHANGES),
       moreTimes: Math.max(0, times.length - MAX_TIMES_WITH_CHANGES),
     });

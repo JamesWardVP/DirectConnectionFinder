@@ -144,6 +144,14 @@ const stationLoc = (s) => ({ type: 'station', crs: s.crs, id: s.id, name: s.name
 
 function selectDestination(d, { scrollList = false } = {}) {
   explore.select(d.idx, { scroll: scrollList });
+  if (!d.times) {
+    // Departures come from the worker on demand; draw again once they arrive.
+    const data = state.explore;
+    engine.destinationTimes(d.idx).then(({ times, moreTimes }) => {
+      Object.assign(d, { times, moreTimes });
+      if (state.explore === data && explore.selected === d.idx) selectDestination(d);
+    }).catch(() => {});
+  }
   const origin = state.explore.from.stations.length === 1 ? state.explore.from.stations[0].name : state.explore.from.label;
   const mode = state.explore.query.mode;
   const ops = d.operators.map((o) => `<span class="op" style="background:${opColor(o)}">${esc(o.name)}</span>`).join('');
@@ -158,7 +166,8 @@ function selectDestination(d, { scrollList = false } = {}) {
       <div class="rp-ops">${ops}</div>
     </div>
     <ul class="rp-list" aria-label="Departures">
-      ${d.times.map((t) => `<li><button type="button" tabindex="-1">
+      ${!d.times ? '<li class="rp-loading">Loading departures…</li>' : ''}
+      ${(d.times || []).map((t) => `<li><button type="button" tabindex="-1">
         <span class="rp-time">${esc(t.depart)} → ${esc(t.arrive)}${t.nextDay ? ' +1' : ''}</span>
         <span class="rp-price">${fmtDuration(t.duration)}</span>
         <span class="rp-sub">${t.via.length ? `change at ${t.via.map(esc).join(', ')} · ` : ''}${esc(t.operator.name)}${state.explore.from.stations.length > 1 ? ` · from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span>

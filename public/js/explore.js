@@ -114,6 +114,7 @@ export class ExploreView {
   }
 
   detailHtml(d) {
+    if (!d.times) return '<div class="detail"><p class="fare-note">Loading departures…</p></div>';
     const multi = this.data.from.stations.length > 1;
     const rows = d.times.map((t) => `
       <li><span class="t">${esc(t.depart)} → ${esc(t.arrive)}${t.nextDay ? ' +1' : ''}</span>

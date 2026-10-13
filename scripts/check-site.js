@@ -105,7 +105,7 @@ for (const reachChanges of [1, 2, 3]) {
   const byChanges = {};
   for (const d of r.destinations) byChanges[d.changes] = (byChanges[d.changes] || 0) + 1;
   const man = r.destinations.find((d) => d.crs === 'MAN');
-  console.log(`\nFrom London Kings Cross, up to ${reachChanges} change(s), a Wednesday (${ms} ms, ${(JSON.stringify(r).length / 1e6).toFixed(1)} MB): `
+  console.log(`\nFrom London Kings Cross, up to ${reachChanges} change(s), a Wednesday (${ms} ms, ${(JSON.stringify({ ...r, destinations: r.destinations.map(({ times, ...d }) => d) }).length / 1e6).toFixed(1)} MB sent to the page): `
     + `${r.destinations.length} stations, by changes ${JSON.stringify(byChanges)}; Manchester Piccadilly: ${man ? `${man.changes} change(s), fastest ${man.fastest} min via ${man.via.join(', ') || '-'}, ${man.trainsPerDay}/day` : 'not reached'}`);
   check(man && man.changes === 1, `KGX up to ${reachChanges} changes: expected Manchester Piccadilly with 1 change`);
   check(byChanges[0] > 50, `KGX up to ${reachChanges} changes: direct stations should still be listed`);

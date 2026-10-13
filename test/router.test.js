@@ -307,5 +307,6 @@ test('from a station with changes: every station reached, grouped by fewest chan
   assert.ok(!byName.has('Station A'));
   assert.equal(reach.query.maxChanges, 1);
   // Lines on the map follow the whole journey.
-  assert.deepEqual(byName.get('Station E').path.map((p) => p.name.slice(-1)), ['A', 'B', 'C', 'E']);
+  const at = (c) => { const x = feed.stations[feed.stationIndexByCrs.get(`X${c}${c}`)]; return [x.lat, x.lon]; };
+  assert.deepEqual(byName.get('Station E').path, ['A', 'B', 'C', 'E'].map(at));
 });

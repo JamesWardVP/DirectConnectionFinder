@@ -12,6 +12,8 @@ export class RouteMap {
     this.map.attributionControl.addAttribution('Coastline: Natural Earth');
     this.callbacks = { onRouteHover, onRouteClick, onMapClick, onEmptyClick, onStationAction, onDestinationClick };
     this.exploreLayer = L.layerGroup().addTo(this.map);
+    // Thousands of destination lines draw much faster on a canvas than as SVG.
+    this.exploreCanvas = L.canvas({ padding: 0.3 });
     this.landLayer = L.layerGroup().addTo(this.map);
     this.areaLayer = L.layerGroup().addTo(this.map);
     this.routeLayer = L.layerGroup().addTo(this.map);
@@ -309,8 +311,8 @@ export class RouteMap {
     for (const d of [...dests].sort((a, b) => a.trainsPerDay - b.trainsPerDay)) {
       const t = n > 1 ? rank.get(d.idx) / (n - 1) : 0;
       const color = rankColor(opColor(d.operators[0]), t);
-      const coords = d.path.map((p) => [p.lat, p.lon]);
-      const line = L.polyline(coords, { color, weight: 4, opacity: 0.9, lineJoin: 'round', lineCap: 'round', interactive: false, ...dashFor(d.changes, 4) });
+      const coords = d.path;
+      const line = L.polyline(coords, { color, weight: 4, opacity: 0.9, lineJoin: 'round', lineCap: 'round', interactive: false, renderer: this.exploreCanvas, ...dashFor(d.changes, 4) });
       const r = 4 + 5 * Math.sqrt(d.trainsPerDay / maxTrains);
       const dot = L.circleMarker([d.lat, d.lon], {
         radius: r, color: '#111', weight: 2.5, fillColor: '#fff', fillOpacity: 1, className: 'station-hit',
@@ -346,7 +348,7 @@ export class RouteMap {
     if (idx == null) return;
     const { d, line } = this.explore.byIdx.get(idx);
     line.bringToFront();
-    const b = L.latLngBounds([...d.path.map((p) => [p.lat, p.lon])]);
+    const b = L.latLngBounds(d.path);
     this.map.fitBounds(b, { paddingTopLeft: [40, 40], paddingBottomRight: [40 + padRight, 40 + padBottom], maxZoom: 11, animate: false });
   }
 
