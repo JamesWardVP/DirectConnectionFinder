@@ -12,6 +12,12 @@ export function fmtDuration(min) {
 
 export const money = (n) => `£${Number(n).toFixed(2)}`;
 
+/** "No station inside the radius…" note, naming the nearest stations used. */
+export function nearestNote(side, what) {
+  const list = side.stations.map((s) => `${escapeHtml(s.name)} (${fmtMiles(s.distanceKm)})`).join(', ');
+  return `No station within the radius of ${what}, so the nearest ${side.stations.length > 1 ? 'ones are' : 'one is'} used: ${list}.`;
+}
+
 export function fmtMiles(km) {
   const mi = km / KM_PER_MILE;
   return mi < 0.1 ? 'at the station' : `${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi`;

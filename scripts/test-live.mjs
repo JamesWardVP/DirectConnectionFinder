@@ -65,9 +65,17 @@ async function desktop() {
   check(/Edinburgh Waverley/.test(await page.inputValue('#to-input')), '"Edinburgh" suggests Edinburgh Waverley first');
   await page.fill('#date', tomorrow);
   await page.fill('#time', '09:00');
+  // Progress shows over the map while searching (record it: searches are quick).
+  await page.evaluate(() => {
+    window.busySeen = false;
+    const el = document.querySelector('#busy');
+    new MutationObserver(() => { if (!el.hidden) window.busySeen = true; }).observe(el, { attributes: true });
+  });
   const t0 = Date.now();
   await page.click('.go');
   await page.waitForSelector('.journey', { timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => window.busySeen) && await page.isHidden('#busy'), 'search progress shows over the map, then goes away');
   const searchMs = Date.now() - t0;
   const cards = await page.$$eval('.journey .card', (els) => els.slice(0, 6).map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   console.log(`  search took ${searchMs} ms in the browser; first results:`);

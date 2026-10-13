@@ -2,7 +2,7 @@ import { RouteMap } from './map.js';
 import { ResultsView } from './results.js';
 import { ExploreView } from './explore.js';
 import {
-  KM_PER_MILE, debounce, escapeHtml as esc, fmtDate, fmtDuration, money, changesLabel, swatchSvg, rankColor, opColor,
+  KM_PER_MILE, debounce, escapeHtml as esc, fmtDate, fmtMiles, fmtDuration, money, changesLabel, swatchSvg, rankColor, opColor,
 } from './util.js';
 import { Engine } from './engine.js';
 import { geocode } from './geocode.js';
@@ -237,12 +237,14 @@ engine.ready.then((meta) => {
 });
 
 // ---------------------------------------------------------------- mode panels
+const goLabel = () => (form.elements.task.value === 'explore' ? 'Show direct destinations' : 'Find trains');
+
 function syncTask() {
   const task = form.elements.task.value;
   const wasExplore = state.task === 'explore';
   state.task = task;
   $$('[data-tasks]').forEach((el) => { el.hidden = !el.dataset.tasks.split(' ').includes(task); });
-  $('.go', form).textContent = task === 'explore' ? 'Show direct destinations' : 'Find trains';
+  if (!$('.go', form).disabled) $('.go', form).textContent = goLabel();
   $('.map-wrap').classList.toggle('exploring', task === 'explore');
   // A whole day is more useful when looking at everywhere you can go.
   if (task === 'explore' && !wasExplore && $('#window').value === '120') $('#window').value = '720';
@@ -386,7 +388,8 @@ function setupCombo(side) {
       html.push('<li class="opt-head" role="presentation">Places</li>');
       for (const p of places) {
         items.push({ kind: 'place', ...p });
-        html.push(`<li role="option" data-i="${items.length - 1}"><span class="opt-icon place"></span><span class="opt-name">${esc(p.label)}</span></li>`);
+        const near = p.nearest ? `<span class="opt-meta">${esc(p.nearest.name)} ${fmtMiles(p.nearest.distanceKm)}</span>` : '';
+        html.push(`<li role="option" data-i="${items.length - 1}"><span class="opt-icon place"></span><span class="opt-name">${esc(p.label)}</span>${near}</li>`);
       }
     }
     if (placesError && !items.length) html.push(`<li class="opt-head" role="presentation">${esc(placesError)}</li>`);
@@ -408,6 +411,9 @@ function setupCombo(side) {
     let places = [], err = null;
     try {
       places = await geocode(q);
+      // Say which station each place is nearest, so places with the same
+      // name (Sherburn near Malton, Sherburn-in-Elmet...) can be told apart.
+      places = await Promise.all(places.slice(0, 5).map(async (p) => ({ ...p, nearest: (await engine.nearby(p.lat, p.lon, 80))[0] })));
     } catch { err = 'Place search is unavailable right now'; }
     if (my !== seq) return;
     renderList(stations.slice(0, 8), places.slice(0, 5), err);
@@ -486,9 +492,18 @@ form.addEventListener('submit', async (e) => {
   await runSearch(body);
 });
 
+/** Show search progress where it is always seen: over the map and on the button. */
+function setBusy(text) {
+  const btn = $('.go', form), busy = $('#busy');
+  btn.disabled = !!text;
+  btn.classList.toggle('busy-btn', !!text);
+  btn.textContent = text ? 'Searching…' : goLabel();
+  if (text) $('.busy-text', busy).textContent = text;
+  busy.hidden = !text;
+}
+
 async function runExplore(body) {
-  const btn = $('.go', form);
-  btn.disabled = true;
+  setBusy('Finding every direct train…');
   results.showLoading('Finding every direct train…');
   clearRoute();
   try {
@@ -503,13 +518,12 @@ async function runExplore(body) {
     showError(err.message);
     results.showEmpty();
   } finally {
-    btn.disabled = false;
+    setBusy(null);
   }
 }
 
 async function runSearch(body) {
-  const btn = $('.go', form);
-  btn.disabled = true;
+  setBusy('Finding trains…');
   results.showLoading();
   clearRoute();
   try {
@@ -522,7 +536,7 @@ async function runSearch(body) {
     showError(err.message);
     results.showEmpty();
   } finally {
-    btn.disabled = false;
+    setBusy(null);
   }
 }
 
