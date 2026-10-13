@@ -7,6 +7,10 @@ import { haversineKm, priceJourney } from './fares.js';
 import { bookingLinks } from './links.js';
 
 const MAX_STATIONS_PER_SIDE = 25;
+// With no station inside the radius, stations up to this much further away
+// than the nearest one are used too (at most FALLBACK_STATIONS of them).
+const FALLBACK_EXTRA_KM = 8;
+const FALLBACK_STATIONS = 4;
 const MAX_RESULTS = 250;
 const DAY = 1440;
 // A route through another change station is listed when it takes at most
@@ -61,7 +65,11 @@ export function resolveLocation(feed, servedStations, loc, radiusKm) {
   }
   let fellBackToNearest = false;
   if (!stations.length) {
-    stations = stationsNear(feed, servedStations, lat, lon, Infinity, 1);
+    // No station in range: use the nearest few, not just the single nearest,
+    // since the second-nearest is often about as close and better served.
+    const nearest = stationsNear(feed, servedStations, lat, lon, Infinity, FALLBACK_STATIONS);
+    const reach = nearest.length ? nearest[0].distanceKm + FALLBACK_EXTRA_KM : 0;
+    stations = nearest.filter((s) => s.distanceKm <= reach);
     fellBackToNearest = true;
   }
   return { label, lat, lon, radiusKm: radius, stations, fellBackToNearest };

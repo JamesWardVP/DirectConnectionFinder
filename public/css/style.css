@@ -326,6 +326,15 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
 .runs-dates { font-size: 12.5px; color: var(--ink-2); }
 
 .more-results { display: block; margin: 12px auto; padding: 8px 18px; border: 2px solid var(--ink); border-radius: 999px; background: #fff; cursor: pointer; font: 400 14px var(--display); }
+/* Search progress: floats over the top of the map, always in view. */
+.busy {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1100;
+  width: min(320px, calc(100% - 32px)); padding: 12px 18px 14px; text-align: center;
+  background: #fff; border: 2px solid var(--ink); border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  font-family: var(--display); color: var(--ink);
+}
+.busy .bar { height: 8px; margin: 10px auto 0; border-radius: 4px; background: linear-gradient(90deg, #DC241F 0 20%, #FFD300 20% 40%, #00782A 40% 60%, #0019A8 60% 80%, #9B0056 80%); background-size: 200% 100%; animation: slide 1.2s linear infinite; }
+.go.busy-btn { opacity: .85; cursor: progress; }
 .loading { padding: 28px; text-align: center; font-family: var(--display); color: var(--ink-2); }
 .loading .bar { height: 8px; margin: 14px auto 0; width: 70%; border-radius: 4px; background: linear-gradient(90deg, #DC241F 0 20%, #FFD300 20% 40%, #00782A 40% 60%, #0019A8 60% 80%, #9B0056 80%); background-size: 200% 100%; animation: slide 1.2s linear infinite; }
 @keyframes slide { to { background-position: -200% 0; } }
@@ -412,6 +421,8 @@ fieldset.when { border: 0; padding: 0; margin: 16px 0 0; }
   .layout { flex-direction: column-reverse; }
   .panel { width: auto; border-right: 0; overflow: visible; }
   .map-wrap { height: 55vh; flex: none; border-bottom: 2px solid var(--ink); }
+  /* The map may be scrolled out of view on a phone, so pin it to the screen. */
+  .busy { position: fixed; top: 12px; }
   .stripes { display: none; }
   .topbar { padding: 10px 16px; }
   .search { padding: 14px 16px; }

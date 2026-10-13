@@ -1,5 +1,5 @@
 import {
-  escapeHtml as esc, fmtDuration, money, fmtMiles, fmtDate, changesLabel, swatchSvg, rankColor, opColor,
+  escapeHtml as esc, nearestNote, fmtDuration, money, fmtMiles, fmtDate, changesLabel, swatchSvg, rankColor, opColor,
 } from './util.js';
 
 const PAGE = 60;
@@ -58,7 +58,7 @@ export class ResultsView {
 
     const notes = [];
     for (const [side, name] of [[data.from, 'start'], [data.to, 'destination']]) {
-      if (side.fellBackToNearest) notes.push(`No station inside the radius of your ${name}, so the nearest one (${esc(side.stations[0].name)}) is used.`);
+      if (side.fellBackToNearest) notes.push(nearestNote(side, `your ${name}`));
       else if (side.stations.length > 1) notes.push(`${side.stations.length} stations near your ${name}: ${side.stations.slice(0, 6).map((s) => esc(s.name)).join(', ')}${side.stations.length > 6 ? '…' : ''}`);
     }
     if (q.datesWithService.length < q.dates.length) {

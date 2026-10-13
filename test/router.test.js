@@ -131,6 +131,14 @@ test('a point with no station in range falls back to the nearest station', () =>
   const r = search({ from: { type: 'point', lat: 50.0, lon: -1.0 }, fromRadiusKm: 0, to: st('D'), time: '07:30' });
   assert.equal(r.from.fellBackToNearest, true);
   assert.equal(r.from.stations[0].name, 'Station A');
+  assert.equal(r.from.stations.length, 1); // B is much further away
+});
+
+test('with no station in range, nearly-as-near stations are used too', () => {
+  // A is 9 km away and B 13 km: both are reasonable places to start from.
+  const r = search({ from: { type: 'point', lat: 51.08, lon: -1.0 }, fromRadiusKm: 0, to: st('D'), time: '07:30' });
+  assert.equal(r.from.fellBackToNearest, true);
+  assert.deepEqual(r.from.stations.map((s) => s.name), ['Station A', 'Station B']);
 });
 
 test('"any date" mode groups trains that run on several days', () => {

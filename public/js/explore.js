@@ -1,4 +1,4 @@
-import { escapeHtml as esc, fmtDuration, fmtDate, fmtMiles, opColor } from './util.js';
+import { escapeHtml as esc, nearestNote, fmtDuration, fmtDate, fmtMiles, opColor } from './util.js';
 
 const PAGE = 80;
 const SORTS = {
@@ -35,8 +35,8 @@ export class ExploreView {
       ? fmtDate(q.dates[0], { weekday: 'long', day: 'numeric', month: 'long' })
       : q.mode === 'time' ? `the ${q.dates.length} days from ${fmtDate(q.dates[0])}` : `${q.weekdays.join(', ')} (whole day)`;
     const notes = [];
-    if (data.from.fellBackToNearest) notes.push(`No station inside the radius, so the nearest one (${esc(data.from.stations[0].name)}) is used.`);
-    if (data.from.stations.length > 1) notes.push(`Starting from ${data.from.stations.map((s) => esc(s.name)).join(', ')}.`);
+    if (data.from.fellBackToNearest) notes.push(nearestNote(data.from, esc(data.from.label)));
+    else if (data.from.stations.length > 1) notes.push(`Starting from ${data.from.stations.map((s) => esc(s.name)).join(', ')}.`);
     if (q.datesWithService.length < q.dates.length) notes.push(`No timetable data for ${q.dates.length - q.datesWithService.length} of the dates searched.`);
     this.el.innerHTML = `
       <div class="summary"><strong>${data.destinations.length}</strong> station${data.destinations.length === 1 ? '' : 's'} direct from <strong>${esc(origin)}</strong> · ${esc(when)}</div>
