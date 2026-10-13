@@ -456,7 +456,7 @@ function payload() {
     days: $$('input[name="day"]:checked').map((c) => +c.value),
     weeks: +$('#weeks').value,
     maxChanges: +form.elements.maxChanges.value,
-    minChange: +$('#minChange').value,
+    minChange: $('#minChange').value ? +$('#minChange').value : null,
     sort: $('#sort').value,
   };
 }

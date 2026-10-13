@@ -10,6 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadGtfs } from '../lib/gtfs.js';
 import { loadCif } from '../lib/cif.js';
+import { applyChangeTimes, readInterchange } from '../lib/interchange.js';
 import { encodeBundle } from '../public/js/core/bundle.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -90,6 +91,8 @@ if (opts.source === 'demo') {
   throw new Error(`Unknown source ${opts.source}`);
 }
 console.log(`Loaded ${opts.source}: ${feed.trips.length} trips, ${feed.stations.length} stations in ${((Date.now() - started) / 1000).toFixed(1)} s`);
+const changes = applyChangeTimes(feed, readInterchange(path.join(ROOT, 'data', 'interchange.csv')));
+console.log(`Change times: ${changes.feed} from the timetable, ${changes.curated} from data/interchange.csv, ${changes.estimated} estimated from station size`);
 
 const bundle = encodeBundle(feed, { start: opts.start, days: opts.days, source });
 const out = path.resolve(ROOT, opts.out);

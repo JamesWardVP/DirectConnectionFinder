@@ -22,13 +22,15 @@ const KIND_TRAIN = 1, KIND_WALK = 2;
  * @param {number} q.depFrom         earliest departure (minutes on the day clock)
  * @param {number} q.depTo           latest departure
  * @param {number} [q.maxTrains=3]
- * @param {number} [q.minChange=5]   default minutes to change trains at a station
+ * @param {number} [q.minChange=5]   minutes to change trains where the station has no usual time
+ * @param {number} [q.fixedChange]   use this change time everywhere instead of each station's own
  * @param {number} [q.maxWait=120]   longest wait for a connection
  * @returns {Array<{origin:number, destination:number, legs:object[]}>}
  */
 export function searchDay(day, feed, q) {
   const maxTrains = Math.max(1, Math.min(q.maxTrains ?? 3, 6));
   const minChange = q.minChange ?? 5;
+  const changeAt = (s) => q.fixedChange ?? feed.minChange.get(s) ?? minChange;
   const maxWait = q.maxWait ?? 120;
   const n = feed.stations.length;
   const destSet = new Set(q.destinations);
@@ -62,7 +64,7 @@ export function searchDay(day, feed, q) {
         for (const s of marked) {
           if (destSet.has(s)) continue; // no need to travel beyond a destination
           const arrivedBy = L.kind[k - 1][s];
-          const ready = L.arr[k - 1][s] + (arrivedBy === KIND_WALK ? 0 : (feed.minChange.get(s) ?? minChange));
+          const ready = L.arr[k - 1][s] + (arrivedBy === KIND_WALK ? 0 : changeAt(s));
           const prevTrain = arrivedBy === KIND_TRAIN ? L.train[k - 1][s] : NONE;
           const stayOn = prevTrain === NONE ? null : onwardArrivals(day.trains[prevTrain], L.alight[k - 1][s]);
           const travelled = pathStations(L, day, k - 1, s);
@@ -243,6 +245,117 @@ export function lowerBound(arr, value) {
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
     if (arr[mid] < value) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Every sensible one-change route, best per change station.
+ *
+ * RAPTOR keeps only the fastest way to reach each station, so a route through
+ * a different change station that gets in a little later (say Wakefield →
+ * Oxford → Beaconsfield, when going via London is quicker) is dropped. This
+ * looks at each change station separately and keeps the journeys through it
+ * that no other journey through the same station beats.
+ *
+ * Takes the same query as searchDay and returns results in the same shape.
+ */
+export function oneChangeRoutes(day, feed, q) {
+  const minChange = q.minChange ?? 5;
+  const changeAt = (s) => q.fixedChange ?? feed.minChange.get(s) ?? minChange;
+  const maxWait = q.maxWait ?? 120;
+  const destSet = new Set(q.destinations);
+  const originSet = new Set(q.origins);
+  const footpaths = buildFootpaths(feed);
+
+  // Where each train that reaches a destination can be boarded, by station.
+  const feeders = new Map();
+  day.trains.forEach((train, ti) => {
+    let lastDest = -1;
+    for (let p = 0; p < train.stations.length; p++) if (train.dropoff[p] && destSet.has(train.stations[p])) lastDest = p;
+    for (let p = 0; p < lastDest; p++) {
+      const s = train.stations[p];
+      if (!train.pickup[p] || destSet.has(s) || originSet.has(s)) continue;
+      if (!feeders.has(s)) feeders.set(s, []);
+      feeders.get(s).push({ dep: train.dep[p], ti, pos: p });
+    }
+  });
+  for (const list of feeders.values()) list.sort((a, b) => a.dep - b.dep);
+
+  const results = [];
+  for (const origin of q.origins) {
+    if (destSet.has(origin)) continue;
+    const best = new Map(); // change station|destination → candidates
+    const deps = day.departures[origin];
+    for (let i = lowerBound(deps.time, q.depFrom); i < deps.time.length && deps.time[i] <= q.depTo; i++) {
+      const t1 = deps.train[i], train1 = day.trains[t1], p0 = deps.pos[i];
+      // A train that reaches a destination itself needs no change before it.
+      let firstDest = train1.stations.length;
+      for (let p = p0 + 1; p < train1.stations.length; p++) {
+        if (train1.dropoff[p] && destSet.has(train1.stations[p])) { firstDest = p; break; }
+      }
+      const directArr = firstDest < train1.stations.length ? train1.arr[firstDest] : Infinity;
+      const travelled = new Set([train1.stations[p0]]);
+      for (let q1 = p0 + 1; q1 < firstDest; q1++) {
+        const x = train1.stations[q1];
+        travelled.add(x);
+        if (!train1.dropoff[q1] || originSet.has(x)) continue;
+        const arrX = train1.arr[q1];
+        const onward = onwardArrivals(train1, q1);
+        const tryFrom = (y, ready, walk) => {
+          const list = feeders.get(y);
+          if (!list) return;
+          for (let j = lowerBoundBy(list, ready); j < list.length && list[j].dep <= ready + maxWait; j++) {
+            const { ti: t2, pos: pb } = list[j];
+            if (t2 === t1) continue;
+            const train2 = day.trains[t2];
+            for (let p = pb + 1; p < train2.stations.length; p++) {
+              const s = train2.stations[p];
+              // Going back over ground already covered is never sensible.
+              if (travelled.has(s) || originSet.has(s)) break;
+              // Pointless if you could stay on the first train and change later.
+              if (!walk && onward.has(s) && train2.pickup[p] && onward.get(s) + changeAt(s) <= train2.dep[p]) break;
+              if (!destSet.has(s) || !train2.dropoff[p]) continue;
+              const arr = train2.arr[p];
+              if (arr >= directArr) break;
+              const key = `${y}|${s}`;
+              if (!best.has(key)) best.set(key, []);
+              best.get(key).push({ dep: train1.dep[p0], arr, t1, p0, q1, x, walk, t2, pb, p, dest: s });
+            }
+          }
+        };
+        tryFrom(x, arrX + changeAt(x), null);
+        for (const fp of footpaths.get(x) || []) {
+          if (originSet.has(fp.to) || travelled.has(fp.to)) continue;
+          tryFrom(fp.to, arrX + fp.minutes, fp);
+        }
+      }
+    }
+    // Through each change station, keep the journeys nothing else beats there.
+    // (Latest departure first; keep each that arrives before all later ones.)
+    for (const list of best.values()) {
+      list.sort((a, b) => b.dep - a.dep || a.arr - b.arr);
+      let earliest = Infinity;
+      for (const c of list) {
+        if (c.arr >= earliest) continue;
+        earliest = c.arr;
+        const legs = [{ type: 'train', trainIndex: c.t1, train: day.trains[c.t1], boardPos: c.p0, alightPos: c.q1 }];
+        if (c.walk) {
+          legs.push({ type: 'transfer', from: c.x, to: c.walk.to, transferIndex: c.walk.index, depart: day.trains[c.t1].arr[c.q1], arrive: day.trains[c.t1].arr[c.q1] + c.walk.minutes });
+        }
+        legs.push({ type: 'train', trainIndex: c.t2, train: day.trains[c.t2], boardPos: c.pb, alightPos: c.p });
+        results.push({ origin, destination: c.dest, legs });
+      }
+    }
+  }
+  return results;
+}
+
+function lowerBoundBy(list, value) {
+  let lo = 0, hi = list.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (list[mid].dep < value) lo = mid + 1; else hi = mid;
   }
   return lo;
 }

@@ -72,7 +72,7 @@ If a download or build fails, the previous deployment stays live.
 Known gaps:
 
 - **Bank holidays:** the "does not run on bank holidays" flag is ignored, because the extract has no bank-holiday calendar.
-- **Minimum connection times:** every station uses the default 5 minutes. The minimum can be changed under *More options*.
+- **Change times:** each station has its own usual time to change trains. Big stations are listed in `data/interchange.csv` (for example 15 minutes at the London termini and 10 at Birmingham New Street). Every other station gets a time from how busy it is: 7 minutes at the busiest 3%, 5 at the next busiest, and 4 at small stations. These times are estimates, and you can edit the CSV. Under *More options* you can use one fixed change time everywhere instead.
 
 ### GTFS
 
@@ -101,7 +101,7 @@ The browser looks up postcodes with [postcodes.io](https://postcodes.io) and pla
 | `lib/gtfs.js`, `lib/cif.js` | Build time: import a GTFS feed or a CIF timetable. |
 | `public/js/core/bundle.js` | Packs a timetable into `timetable.json`. Trips that share a calling pattern share its stations and running times, and each trip's running days are a bitmask over the date window. The browser unpacks it. A national timetable comes to roughly 20 MB, or about 2 MB gzipped as GitHub Pages serves it. |
 | `public/js/core/timetable.js` | Builds a per-day index and merges same-block trips into single trains. Each day covers trains still running from the night before and early trains the next day. |
-| `public/js/core/router.js` | Range-RAPTOR search. Round *k* holds the best arrival using exactly *k* trains, so slower routes with more changes are still found. Changes that gain nothing and routes that double back are pruned. Results a train with fewer changes beats are flagged, and hidden by default in the UI. |
+| `public/js/core/router.js` | Range-RAPTOR search. Round *k* holds the best arrival using exactly *k* trains, so slower routes with more changes are still found. Changes that gain nothing and routes that double back are pruned. A second pass (`oneChangeRoutes`) finds the best journeys through *each* change station. That way a route like Wakefield → Oxford → Beaconsfield is listed even when going via London is a bit quicker, as long as it takes at most 1.5× the fastest journey plus 30 minutes. Results a train with fewer changes beats are flagged. They are shown by default and can be hidden with a tick box. |
 | `public/js/core/fares.js` | Dynamic programme over every station the journey calls at, to find the cheapest set of tickets (split ticketing). |
 | `public/js/core/search.js` | Resolves locations and radii to stations and expands the date modes. Ranks, groups, prices and links journeys, and builds the distinct map routes. |
 | `public/js/engine.worker.js` | Runs the planner in a Web Worker so the page stays responsive. |

@@ -7,6 +7,7 @@ import { priceJourney, estimateFare } from '../public/js/core/fares.js';
 import { nationalRailUrl } from '../public/js/core/links.js';
 import { encodeBundle, decodeBundle } from '../public/js/core/bundle.js';
 import { miniFeed, writeFeed } from './helpers.js';
+import { applyChangeTimes, BANDS } from '../lib/interchange.js';
 
 // Everything runs on a feed that has been through the website's bundle
 // format, exactly as the browser sees it.
@@ -43,6 +44,39 @@ test('respects minimum change time', () => {
   assert.equal(names(five.journeys[0]), 'A>C C>E');
   const three = search({ from: st('A'), to: st('E'), time: '07:30', minChange: 3 });
   assert.equal(three.journeys[0].arrive.time, '09:10');
+});
+
+test('each station has its own usual change time, unless one is fixed', () => {
+  const c = feed.stationIndexByCrs.get('XCC');
+  feed.minChange.set(c, 3);
+  try {
+    const usual = search({ from: st('A'), to: st('E'), time: '07:30' });
+    assert.equal(usual.journeys[0].arrive.time, '09:10'); // C is quick to change at
+    const change = usual.journeys[0].legs[1].change;
+    assert.deepEqual(change, { allow: 3, usual: true, wait: change.wait });
+    assert.ok(change.wait >= 3);
+    const fixed = search({ from: st('A'), to: st('E'), time: '07:30', minChange: 10 });
+    assert.equal(fixed.journeys[0].arrive.time, '09:20');
+    assert.deepEqual(fixed.journeys[0].legs[1].change.allow, 10);
+  } finally {
+    feed.minChange.delete(c);
+  }
+});
+
+test('change times: curated for big stations, by size for the rest', () => {
+  const f = {
+    trips: [
+      { stations: [0, 1, 2] }, { stations: [0, 1] }, { stations: [0, 3] }, { stations: [0, 1, 4] },
+    ],
+    minChange: new Map([[4, 2]]), // from the timetable itself: kept
+    stationIndexByCrs: new Map([['BIG', 1], ['TTF', 4]]),
+  };
+  const counts = applyChangeTimes(f, [['BIG', 15], ['TTF', 9], ['NOPE', 7]]);
+  assert.equal(f.minChange.get(1), 15);
+  assert.equal(f.minChange.get(4), 2);
+  assert.equal(f.minChange.get(0), BANDS[0].minutes); // busiest
+  assert.equal(f.minChange.get(3), BANDS[2].minutes);
+  assert.deepEqual(counts, { feed: 1, curated: 1, estimated: 3 });
 });
 
 test('trips sharing a block are one physical train, so the journey is direct', () => {
@@ -215,4 +249,36 @@ test('direct destinations from several nearby stations skip each other', async (
   const names = r.destinations.map((d) => d.name);
   assert.ok(!names.includes('Station A') && !names.includes('Station B'));
   assert.ok(names.includes('Station D'));
+});
+
+test('a slower route through another change station is still listed', async () => {
+  // W→K then walk to M for the train to B is fastest every hour; W→O→B is a
+  // little slower but needs no walk across town. Both should be listed.
+  const coords = { W: [53.68, -1.5], K: [51.53, -0.12], M: [51.52, -0.16], O: [51.75, -1.27], B: [51.61, -0.64] };
+  const stops = [['stop_id', 'stop_code', 'stop_name', 'stop_lat', 'stop_lon']];
+  for (const [id, [lat, lon]] of Object.entries(coords)) stops.push([id, `Q${id}${id}`, `Stop ${id}`, lat, lon]);
+  const trips = { L1: [['W', '08:00'], ['K', '10:00']], L2: [['W', '09:00'], ['K', '11:00']],
+    C1: [['M', '10:30'], ['B', '11:00']], C2: [['M', '11:30'], ['B', '12:00']],
+    X1: [['W', '08:10'], ['O', '11:00']], O1: [['O', '11:15'], ['B', '12:10']] };
+  const stopTimes = [['trip_id', 'arrival_time', 'departure_time', 'stop_id', 'stop_sequence']];
+  for (const [id, calls] of Object.entries(trips)) calls.forEach(([s, t], i) => stopTimes.push([id, `${t}:00`, `${t}:00`, s, i + 1]));
+  const dir = writeFeed({
+    'agency.txt': [['agency_id', 'agency_name', 'agency_url', 'agency_timezone'], ['OP', 'Test Rail', 'https://example.test', 'Europe/London']],
+    'routes.txt': [['route_id', 'agency_id', 'route_short_name', 'route_type'], ['R', 'OP', 'R', '2']],
+    'stops.txt': stops,
+    'trips.txt': [['route_id', 'service_id', 'trip_id'], ...Object.keys(trips).map((t) => ['R', 'S', t])],
+    'stop_times.txt': stopTimes,
+    'calendar.txt': [
+      ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'],
+      ['S', 1, 1, 1, 1, 1, 1, 1, '20260101', '20261231'],
+    ],
+    'transfers.txt': [['from_stop_id', 'to_stop_id', 'transfer_type', 'min_transfer_time'], ['K', 'M', 2, 900]],
+  });
+  const f = await loadGtfs(dir);
+  const r = runSearch(new Timetable(f), f.stations.map((s) => s.idx), {
+    from: { type: 'station', crs: 'QWW' }, to: { type: 'station', crs: 'QBB' },
+    mode: 'date', date: WED, time: '07:30', windowMins: 120, maxChanges: 1,
+  }, { today: WED });
+  const routes = r.journeys.map((j) => `${j.depart.time} ${j.legs.map((l) => (l.type === 'train' ? `${l.from.name.slice(-1)}>${l.to.name.slice(-1)}` : '~')).join(' ')}`);
+  assert.deepEqual(routes.sort(), ['08:00 W>K ~ M>B', '08:10 W>O O>B', '09:00 W>K ~ M>B']);
 });
