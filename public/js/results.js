@@ -21,18 +21,21 @@ export class ResultsView {
   }
 
   showEmpty() {
+    this.el.dataset.view = 'journeys';
     this.el.innerHTML = '';
     this.el.append(document.getElementById('tpl-empty').content.cloneNode(true));
   }
 
-  showLoading() {
-    this.el.innerHTML = '<div class="loading">Finding trains…<div class="bar"></div></div>';
+  showLoading(text = 'Finding trains…') {
+    this.el.dataset.view = 'loading';
+    this.el.innerHTML = `<div class="loading">${text}<div class="bar"></div></div>`;
   }
 
   /**
    * data: server response; journeys: visible journeys; routeById: Map of visible routes
    */
   render(data, journeys, routeById, hiddenCount) {
+    this.el.dataset.view = 'journeys';
     this.data = data;
     this.journeys = journeys;
     this.routeById = routeById;
@@ -171,6 +174,7 @@ export class ResultsView {
   }
 
   handleClick(e) {
+    if (this.el.dataset.view !== 'journeys') return;
     const action = e.target.closest('[data-action]')?.dataset.action;
     if (action === 'more') { this.limit += PAGE; this.draw(); return; }
     if (action === 'calls') {
@@ -186,6 +190,7 @@ export class ResultsView {
   }
 
   handleHover(e, on) {
+    if (this.el.dataset.view !== 'journeys') return;
     const art = e.target.closest('.journey');
     if (!art || (e.relatedTarget && art.contains(e.relatedTarget))) return;
     this.onHover?.(art.dataset.route, on);

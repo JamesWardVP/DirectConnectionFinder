@@ -2,6 +2,7 @@
 import { decodeBundle } from './core/bundle.js';
 import { Timetable } from './core/timetable.js';
 import { runSearch } from './core/search.js';
+import { directDestinations } from './core/destinations.js';
 
 let timetable = null;
 let served = null;
@@ -39,6 +40,12 @@ self.onmessage = async ({ data }) => {
       if (!timetable) throw new Error('The timetable has not loaded yet');
       const started = performance.now();
       const result = runSearch(timetable, served, payload.body, { today: payload.today });
+      result.elapsedMs = Math.round(performance.now() - started);
+      self.postMessage({ id, result });
+    } else if (type === 'destinations') {
+      if (!timetable) throw new Error('The timetable has not loaded yet');
+      const started = performance.now();
+      const result = directDestinations(timetable, served, payload.body, { today: payload.today });
       result.elapsedMs = Math.round(performance.now() - started);
       self.postMessage({ id, result });
     }

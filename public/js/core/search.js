@@ -62,7 +62,7 @@ export function resolveLocation(feed, servedStations, loc, radiusKm) {
   return { label, lat, lon, radiusKm: radius, stations, fellBackToNearest };
 }
 
-const parseHHMM = (s) => {
+export const parseHHMM = (s) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
@@ -183,17 +183,17 @@ export function runSearch(timetable, servedStations, p, { today = new Date().toI
 
 const round1 = (x) => Math.round(x * 10) / 10;
 
-function stationRef(feed, idx) {
+export function stationRef(feed, idx) {
   const s = feed.stations[idx];
   return { idx, crs: s.crs, name: s.name, lat: s.lat, lon: s.lon };
 }
 
-function fmtTime(min) {
+export function fmtTime(min) {
   const m = ((min % DAY) + DAY) % DAY;
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
-function clockRef(date, min) {
+export function clockRef(date, min) {
   const offset = Math.floor(min / DAY);
   return { date: addDays(date, offset), time: fmtTime(min), dayOffset: offset };
 }
@@ -282,7 +282,7 @@ function aggregate(raw, mode, sampledDates) {
   return out;
 }
 
-function summariseDays(weekdays, count, sampled) {
+export function summariseDays(weekdays, count, sampled) {
   const is = (arr) => weekdays.length === arr.length && arr.every((d) => weekdays.includes(d));
   if (is([0, 1, 2, 3, 4, 5, 6])) return 'Every day';
   if (is([0, 1, 2, 3, 4])) return 'Mon–Fri';
@@ -303,7 +303,7 @@ function rank(journeys, sort) {
   journeys.forEach((j, i) => { j.rank = i + 1; });
 }
 
-function operatorFor(feed, trip) {
+export function operatorFor(feed, trip) {
   const route = feed.routes.get(trip.routeId);
   const agency = route ? feed.agencies.get(route.agencyId) : null;
   return {

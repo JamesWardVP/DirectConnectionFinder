@@ -19,6 +19,7 @@ It is a static website that runs on **GitHub Pages**. A GitHub Action downloads 
   - *On a date*: leave after or arrive by a time, within a window.
   - *Any date*: a time of day, checked over the next 7 days. Trains that run at the same time on several days are grouped, for example "Mon–Fri".
   - *Days of week*: pick weekdays and search the whole day, over 1 to 4 weeks.
+- **Direct from a station.** Switch to "Direct from a station", or click any station on the map, to see every station you can reach without changing trains. Each one shows trains per day, the fastest time, the first and last train, and the operators. On the map, bigger and more saturated circles mean more trains. From any destination you can plan the full journey (fares and tickets) or explore onward from there.
 - **Shareable searches.** The URL holds the search, so you can bookmark or send it.
 
 ## Publishing on GitHub Pages

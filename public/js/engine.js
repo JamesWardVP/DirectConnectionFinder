@@ -33,6 +33,11 @@ export class Engine {
     return this.call('search', { body, today });
   }
 
+  async destinations(body, today) {
+    await this.ready;
+    return this.call('destinations', { body, today });
+  }
+
   async findStations(query) {
     await this.ready;
     const q = String(query || '').trim().toLowerCase();

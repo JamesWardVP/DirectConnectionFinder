@@ -1,5 +1,6 @@
 import { RouteMap } from './map.js';
 import { ResultsView } from './results.js';
+import { ExploreView } from './explore.js';
 import {
   KM_PER_MILE, debounce, escapeHtml as esc, fmtDate, fmtDuration, money, changesLabel, swatchSvg, rankColor, opColor,
 } from './util.js';
@@ -27,7 +28,16 @@ const routeMap = new RouteMap($('#map'), {
     const j = results.journeys?.find((x) => x.routeId === id);
     if (j) selectRoute(id, j.id, { scrollList: true });
   },
-  onEmptyClick: () => { if (!state.picking && routeMap.selected) clearRoute(); },
+  onEmptyClick: () => {
+    if (state.picking) return;
+    if (routeMap.selected) clearRoute();
+    if (state.task === 'explore' && explore.selected != null) clearDestination();
+  },
+  onStationAction: (action, s) => stationAction(action, s),
+  onDestinationClick: (idx) => {
+    const d = state.explore?.destinations.find((x) => x.idx === idx);
+    if (d) selectDestination(d, { scrollList: true });
+  },
   onMapClick: (latlng) => {
     if (!state.picking) return;
     const side = state.picking;
@@ -61,7 +71,7 @@ function selectRoute(routeId, journeyId, { scrollList = false } = {}) {
 
 function clearRoute() {
   routeMap.select(null);
-  results.select(null, { notify: false });
+  if (results.journeys && $('#results').dataset.view === 'journeys') results.select(null, { notify: false });
   panel.hidden = true;
   panel.innerHTML = '';
   panel.parentElement.classList.remove('has-panel');
@@ -102,6 +112,13 @@ function renderPanel(route, journeyId) {
 panel.addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   const pick = e.target.closest('[data-id]')?.dataset.id;
+  if (state.task === 'explore') {
+    const d = state.explore?.destinations.find((x) => x.idx === explore.selected);
+    if (act === 'close') clearDestination();
+    else if (act === 'plan' && d) planJourneyTo(d);
+    else if (act === 'explore' && d) exploreFrom(d);
+    return;
+  }
   if (act === 'close') clearRoute();
   else if (act === 'details') {
     const card = document.querySelector(`.journey[data-id="${results.selectedId}"]`);
@@ -111,8 +128,87 @@ panel.addEventListener('click', (e) => {
   }
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && routeMap.selected && !e.target.closest('input, select')) clearRoute();
+  if (e.key !== 'Escape' || e.target.closest('input, select')) return;
+  if (routeMap.selected) clearRoute();
+  if (state.task === 'explore' && explore.selected != null) clearDestination();
 });
+
+// ---------------------------------------------------------------- direct from a station
+const explore = new ExploreView($('#results'), {
+  onSelect: (d) => (d ? selectDestination(d) : clearDestination()),
+  onPlan: (d) => planJourneyTo(d),
+  onExplore: (d) => exploreFrom(d),
+});
+
+const stationLoc = (s) => ({ type: 'station', crs: s.crs, id: s.id, name: s.name, lat: s.lat, lon: s.lon });
+
+function selectDestination(d, { scrollList = false } = {}) {
+  explore.select(d.idx, { scroll: scrollList });
+  const origin = state.explore.from.stations.length === 1 ? state.explore.from.stations[0].name : state.explore.from.label;
+  const mode = state.explore.query.mode;
+  const ops = d.operators.map((o) => `<span class="op" style="background:${opColor(o)}">${esc(o.name)}</span>`).join('');
+  panel.innerHTML = `
+    <div class="rp-head">
+      <button type="button" class="rp-close" data-act="close" aria-label="Show all destinations">✕</button>
+      <div class="rp-kind">${swatchSvg('#111', 0)}Direct</div>
+      <h2>${esc(origin)} → ${esc(d.name)}</h2>
+      <p class="rp-via">${mode === 'date' ? `${d.trains} train${d.trains === 1 ? '' : 's'}` : `${d.trainsPerDay} trains a day`} · fastest ${fmtDuration(d.fastest)}</p>
+      <div class="rp-ops">${ops}</div>
+    </div>
+    <ul class="rp-list" aria-label="Departures">
+      ${d.times.map((t) => `<li><button type="button" tabindex="-1">
+        <span class="rp-time">${esc(t.depart)} → ${esc(t.arrive)}${t.nextDay ? ' +1' : ''}</span>
+        <span class="rp-price">${fmtDuration(t.duration)}</span>
+        <span class="rp-sub">${esc(t.operator.name)}${state.explore.from.stations.length > 1 ? ` · from ${esc(t.origin.name)}` : ''}${t.runsOn ? ` · ${esc(t.runsOn)}` : ''}</span>
+      </button></li>`).join('')}
+    </ul>
+    <div class="rp-foot">
+      <button type="button" class="primary" data-act="plan">Plan this journey</button>
+      <button type="button" data-act="explore">Direct from ${esc(d.name)}</button>
+    </div>`;
+  panel.hidden = false;
+  panel.parentElement.classList.add('has-panel');
+  const pad = wideScreen() ? { padRight: panel.offsetWidth + 12 } : { padBottom: panel.offsetHeight + 8 };
+  routeMap.selectDestination(d.idx, pad);
+}
+
+function clearDestination() {
+  explore.select(null);
+  routeMap.selectDestination(null);
+  panel.hidden = true;
+  panel.innerHTML = '';
+  panel.parentElement.classList.remove('has-panel');
+}
+
+function setTask(task) {
+  const r = form.querySelector(`input[name="task"][value="${task}"]`);
+  if (r) r.checked = true;
+  syncTask();
+}
+
+/** Open full journey results (fares, tickets) from the explore origin to a destination. */
+function planJourneyTo(d) {
+  setTask('journey');
+  setLocation('to', stationLoc(d), { preview: false });
+  setRadius('to', 0);
+  form.requestSubmit();
+}
+
+/** Show everywhere direct from another station. */
+function exploreFrom(s) {
+  setTask('explore');
+  setLocation('from', stationLoc(s), { preview: false });
+  setRadius('from', 0);
+  form.requestSubmit();
+}
+
+function stationAction(action, s) {
+  if (action === 'explore') exploreFrom(s);
+  else if (action === 'from' || action === 'to') {
+    setLocation(action, stationLoc(s));
+    $(`#${action}-input`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
 results.showEmpty();
 
 $('#streetmap').addEventListener('change', (e) => routeMap.setStreetMap(e.target.checked));
@@ -141,12 +237,25 @@ engine.ready.then((meta) => {
 });
 
 // ---------------------------------------------------------------- mode panels
+function syncTask() {
+  const task = form.elements.task.value;
+  const wasExplore = state.task === 'explore';
+  state.task = task;
+  $$('[data-tasks]').forEach((el) => { el.hidden = !el.dataset.tasks.split(' ').includes(task); });
+  $('.go', form).textContent = task === 'explore' ? 'Show direct destinations' : 'Find trains';
+  $('.map-wrap').classList.toggle('exploring', task === 'explore');
+  // A whole day is more useful when looking at everywhere you can go.
+  if (task === 'explore' && !wasExplore && $('#window').value === '120') $('#window').value = '720';
+}
+form.elements.task.forEach((r) => r.addEventListener('change', syncTask));
+
 function syncMode() {
   const mode = form.elements.mode.value;
   $$('[data-modes]').forEach((el) => { el.hidden = !el.dataset.modes.split(' ').includes(mode); });
 }
 form.elements.mode.forEach((r) => r.addEventListener('change', syncMode));
 syncMode();
+syncTask();
 
 // ---------------------------------------------------------------- locations
 function sideLabel(loc) {
@@ -206,7 +315,7 @@ const refreshAreas = debounce(async (fit) => {
     sides.push({ lat: loc.lat, lon: loc.lon, radiusKm, stations, isPoint: loc.type === 'point', letter });
   }
   routeMap.setAreas(sides);
-  if (fit && !state.data) routeMap.fitAreas(sides);
+  if (fit && !state.data && !state.explore) routeMap.fitAreas(sides);
 }, 150);
 
 for (const side of ['from', 'to']) {
@@ -336,7 +445,7 @@ function payload() {
   const toLoc = (loc) => (loc.type === 'station' ? { type: 'station', crs: loc.crs, id: loc.id } : { type: 'point', lat: loc.lat, lon: loc.lon, label: loc.label });
   return {
     from: toLoc(state.from),
-    to: toLoc(state.to),
+    to: state.to ? toLoc(state.to) : null,
     fromRadiusKm: +$('#from-radius').value * KM_PER_MILE,
     toRadiusKm: +$('#to-radius').value * KM_PER_MILE,
     mode,
@@ -360,6 +469,14 @@ function showError(msg) {
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   showError('');
+  if (state.task === 'explore') {
+    if (!state.from) { showError('Choose a station to start from.'); return; }
+    const body = payload();
+    delete body.to;
+    saveToUrl(body);
+    await runExplore(body);
+    return;
+  }
   if (!state.from || !state.to) {
     showError(!state.from ? 'Choose where you are starting from.' : 'Choose where you are going.');
     return;
@@ -369,13 +486,36 @@ form.addEventListener('submit', async (e) => {
   await runSearch(body);
 });
 
+async function runExplore(body) {
+  const btn = $('.go', form);
+  btn.disabled = true;
+  results.showLoading('Finding every direct train…');
+  clearRoute();
+  try {
+    const data = await engine.destinations(body, isoToday);
+    state.explore = data;
+    state.data = null;
+    explore.render(data);
+    routeMap.setAreas([{ ...data.from, isPoint: state.from?.type === 'point', letter: 'A' }]);
+    routeMap.setExplore(data);
+    $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    showError(err.message);
+    results.showEmpty();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function runSearch(body) {
   const btn = $('.go', form);
   btn.disabled = true;
   results.showLoading();
+  clearRoute();
   try {
     const data = await engine.search(body, isoToday);
     state.data = data;
+    state.explore = null;
     renderData({ fit: true });
     $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (err) {
@@ -440,7 +580,7 @@ function renderData({ fit }) {
 
 // ---------------------------------------------------------------- shareable URL
 function saveToUrl(body) {
-  const share = { ...body, fromLabel: sideLabel(state.from), toLabel: sideLabel(state.to), fromLoc: state.from, toLoc: state.to };
+  const share = { ...body, task: state.task, fromLabel: sideLabel(state.from), toLabel: sideLabel(state.to), fromLoc: state.from, toLoc: state.to };
   history.replaceState(null, '', `#s=${encodeURIComponent(JSON.stringify(share))}`);
 }
 
@@ -449,11 +589,13 @@ function restoreFromUrl() {
   if (!m) return;
   let s;
   try { s = JSON.parse(decodeURIComponent(m[1])); } catch { return; }
-  if (!s.fromLoc || !s.toLoc) return;
+  const task = s.task === 'explore' ? 'explore' : 'journey';
+  if (!s.fromLoc || (task === 'journey' && !s.toLoc)) return;
+  setTask(task);
   $('#from-radius').value = Math.round((s.fromRadiusKm || 0) / KM_PER_MILE);
   $('#to-radius').value = Math.round((s.toRadiusKm || 0) / KM_PER_MILE);
   setLocation('from', s.fromLoc, { preview: false });
-  setLocation('to', s.toLoc, { preview: false });
+  if (s.toLoc) setLocation('to', s.toLoc, { preview: false });
   const setRadio = (name, value) => { const r = form.querySelector(`input[name="${name}"][value="${value}"]`); if (r) r.checked = true; };
   setRadio('mode', s.mode); setRadio('timeType', s.timeType); setRadio('maxChanges', s.maxChanges);
   if (s.date) $('#date').value = s.date;
@@ -465,7 +607,8 @@ function restoreFromUrl() {
   $$('input[name="day"]').forEach((c) => { c.checked = (s.days || []).includes(+c.value); });
   syncMode();
   refreshAreas(false);
-  runSearch(payload());
+  const body = payload();
+  if (task === 'explore') { delete body.to; runExplore(body); } else runSearch(body);
 }
 restoreFromUrl();
 

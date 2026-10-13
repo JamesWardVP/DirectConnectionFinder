@@ -119,6 +119,26 @@ async function desktop() {
   const place = await page.waitForSelector('#from-options li[role=option] .opt-icon.place', { timeout: 20000 }).then(() => true).catch(() => false);
   check(place, 'postcode lookup finds a place');
 
+  // "Direct from a station" via the station popup on the map.
+  await page.fill('#from-input', 'Kings Cross');
+  await page.waitForSelector('#from-options li[role=option]');
+  await page.keyboard.press('Enter');
+  await page.check('input[name=task][value=explore]', { force: true });
+  await page.click('.go');
+  const exploreOk = await page.waitForSelector('.ex-dest', { timeout: 60000 }).then(() => true).catch(() => false);
+  const exSummary = exploreOk ? (await page.textContent('.summary')).trim() : '';
+  console.log(`  ${exSummary}`);
+  check(exploreOk && (await page.locator('.ex-dest', { hasText: 'Edinburgh Waverley' }).count()) > 0, 'direct destinations from Kings Cross include Edinburgh Waverley');
+  if (exploreOk) {
+    await page.locator('.ex-dest', { hasText: 'Edinburgh Waverley' }).first().locator('.ex-card').click();
+    await page.waitForTimeout(500);
+    check(await page.isVisible('#route-panel'), 'clicking a destination shows its departures');
+    await page.screenshot({ path: 'screenshots/2b-direct-destinations.png' });
+    await page.click('#route-panel [data-act=plan]');
+    const planned = await page.waitForSelector('.journey .times', { timeout: 60000 }).then(() => true).catch(() => false);
+    check(planned && /Edinburgh/.test(await page.inputValue('#to-input')), '"Plan this journey" opens journey results');
+  }
+
   check(errors.length === 0, `no errors in the browser console${errors.length ? `: ${errors.join(' | ')}` : ''}`);
   await page.close();
 }
