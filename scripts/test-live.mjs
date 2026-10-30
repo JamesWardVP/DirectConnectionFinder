@@ -42,11 +42,15 @@ async function desktop() {
   check(!(await page.isVisible('#demo-banner')), 'real timetable (no demo banner)');
   check(await page.isVisible('#showBeaten') && await page.isChecked('#showBeaten'), '"Show slower routes" is visible and on by default');
 
-  // Search London Kings Cross → Edinburgh tomorrow at 09:00.
-  const tomorrow = await page.evaluate(() => {
-    const d = new Date(Date.now() + 86400000);
+  // Search London Kings Cross → Edinburgh at 09:00 next Wednesday. Not
+  // "tomorrow": weekend engineering works can close the East Coast line,
+  // leaving no direct trains to Edinburgh, which is real and not a bug.
+  const searchDate = await page.evaluate(() => {
+    const d = new Date();
+    do d.setDate(d.getDate() + 1); while (d.getDay() !== 3);
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   });
+  console.log(`  searching ${searchDate}`);
   await page.fill('#from-input', 'Kings Cross');
   await page.waitForSelector('#from-options li[role=option]');
   await page.keyboard.press('Enter');
@@ -63,7 +67,7 @@ async function desktop() {
   await page.click('[data-for="to-radius"][data-step="-1"]');
   await page.click('[data-for="to-radius"][data-step="-1"]');
   check(/Edinburgh Waverley/.test(await page.inputValue('#to-input')), '"Edinburgh" suggests Edinburgh Waverley first');
-  await page.fill('#date', tomorrow);
+  await page.fill('#date', searchDate);
   await page.fill('#time', '09:00');
   // Progress shows over the map while searching (record it: searches are quick).
   await page.evaluate(() => {
@@ -123,7 +127,8 @@ async function desktop() {
   check(await page.locator('.detail .stop.major').count() >= 2, 'journey details show the line diagram');
   const changeRow = await page.locator('.journey', { hasText: 'change at' }).first();
   if (await changeRow.count()) {
-    await changeRow.locator('.card').click();
+    // Open it, unless it is the journey already open.
+    if (!(await changeRow.locator('.detail').count())) await changeRow.locator('.card').click();
     const text = await page.waitForSelector('.detail .transfer.change', { timeout: 5000 }).then((e) => e.innerText()).catch(() => '');
     console.log(`  ${text}`);
     check(/usually allow \d+ min/.test(text), 'journeys with a change say how long each station allows');
