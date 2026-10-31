@@ -6,6 +6,8 @@
   "scripts": {
     "build": "node scripts/build-site.js",
     "build:demo": "node scripts/build-demo-gtfs.js",
+    "check": "node scripts/check-site.js dist",
+    "serve": "python3 -m http.server 8000 --directory dist",
     "test": "node --test test/*.test.js"
   },
   "engines": {
