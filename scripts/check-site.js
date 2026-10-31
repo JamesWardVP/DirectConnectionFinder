@@ -81,9 +81,21 @@ run('Wakefield Westgate → Beaconsfield, every day of the week', { from: statio
     const change = j.legs.filter((l) => l.type === 'train').slice(0, -1).map((l) => l.to.crs).join('+');
     if (change) via.set(change, (via.get(change) || 0) + 1);
   }
-  console.log(`  changes at: ${[...via].map(([c, n]) => `${c} ×${n}`).join(', ')}`);
-  check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
+  // The Oxford route needs a direct Wakefield → Oxford train, and those only
+  // run in some weeks, so only expect it when the searched week has one.
+  const [wkf, oxf] = ['WKF', 'OXF'].map((c) => feed.stationIndexByCrs.get(c));
+  let wkfOxf = 0;
+  for (const d of r.query.dates) {
+    const day = timetable.day(d), deps = day.departures[wkf];
+    for (let i = 0; i < deps.time.length; i++) {
+      const t = day.trains[deps.train[i]], o = [...t.stations].indexOf(oxf);
+      if (o > deps.pos[i] && t.dropoff[o]) wkfOxf++;
+    }
+  }
+  console.log(`  changes at: ${[...via].map(([c, n]) => `${c} ×${n}`).join(', ')}; direct Wakefield → Oxford trains that week: ${wkfOxf}`);
+  if (wkfOxf) check(via.has('OXF'), 'WKF-BCF: expected a route changing at Oxford');
   check(via.has('KGX'), 'WKF-BCF: expected a route via London Kings Cross');
+  check(via.size >= 2, 'WKF-BCF: expected routes through more than one change station');
 });
 
 // "Direct from a station": everywhere one train goes from London Kings Cross.
