@@ -22,6 +22,10 @@ It is a static website that runs on **GitHub Pages**. A GitHub Action downloads 
 - **From a station.** Switch to "From a station", or click any station on the map, to see every station you can reach. Choose *Direct* for stations without changing trains, or *+1*, *+2* or *+3 changes* to see everywhere reachable with that many changes. Results are grouped by the fewest changes needed. Each station shows departures per day, the fastest time (and where it changes), the first and last departure, and the operators. On the map, lines are dashed by changes, and bigger, more saturated circles mean more trains. From any destination you can plan the full journey (fares and tickets) or explore onward from there. With changes, up to a week of dates is searched.
 - **Shareable searches.** The URL holds the search, so you can bookmark or send it.
 
+## Working on it locally
+
+Nothing needs installing to *use* the site. To change it, see [CLAUDE.md](CLAUDE.md): `npm ci`, `npm test`, `npm run build`, `npm run serve`, and how to build with the real timetable (copy `.env.example` to `.env`).
+
 ## Publishing on GitHub Pages
 
 1. **Turn on Pages.** In the repository, open **Settings → Pages**. Under *Build and deployment*, set **Source** to **GitHub Actions**. (Pages on a private repository needs a paid GitHub plan.)
