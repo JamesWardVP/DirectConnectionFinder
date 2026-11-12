@@ -96,7 +96,10 @@ jobs:
   test-live:
     needs: deploy
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.56 cannot
+    # install Chromium on. Move back to ubuntu-latest once Playwright is
+    # upgraded to a version that supports the newer image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
